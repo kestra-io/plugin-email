@@ -29,7 +29,7 @@ java {
 }
 
 group = "io.kestra.plugin"
-description = 'Plugin template for Kestra'
+description = 'Plugin Email for Kestra'
 
 tasks.withType(JavaCompile).configureEach {
     options.encoding = "UTF-8"
@@ -49,6 +49,10 @@ dependencies {
     annotationProcessor group: "io.kestra", name: "processor", version: kestraVersion
     compileOnly group: "io.kestra", name: "core", version: kestraVersion
     compileOnly group: "io.kestra", name: "script", version: kestraVersion
+
+    // libs
+    api 'org.simplejavamail:simple-java-mail:8.12.6'
+    api 'org.eclipse.angus:jakarta.mail:2.0.5'
 }
 
 
@@ -91,11 +95,15 @@ dependencies {
     testImplementation group: "io.kestra", name: "repository-memory", version: kestraVersion
     testImplementation group: "io.kestra", name: "runner-memory", version: kestraVersion
     testImplementation group: "io.kestra", name: "storage-local", version: kestraVersion
+    testImplementation group: "io.kestra", name: "scheduler", version: kestraVersion
+    testImplementation group: "io.kestra", name: "worker", version: kestraVersion
 
     // test
     testImplementation "org.junit.jupiter:junit-jupiter-engine"
     testImplementation "org.hamcrest:hamcrest"
     testImplementation "org.hamcrest:hamcrest-library"
+
+    testImplementation group: 'com.icegreen', name: 'greenmail-junit5', version: '2.1.7'
 }
 
 /**********************************************************************************************************************\
@@ -175,8 +183,8 @@ jar {
     manifest {
         attributes(
             "X-Kestra-Name": project.name,
-            "X-Kestra-Title": "Template",
-            "X-Kestra-Group": project.group + ".templates",
+            "X-Kestra-Title": "Email",
+            "X-Kestra-Group": project.group + ".email",
             "X-Kestra-Description": project.description,
             "X-Kestra-Version": project.version
         )

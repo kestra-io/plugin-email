@@ -1,10 +1,10 @@
 {
-  "name": "plugin-template",
+  "name": "plugin-email",
   "build": {
     "context": ".",
     "dockerfile": "Dockerfile"
   },
-  "workspaceFolder": "/workspaces/plugin-template",
+  "workspaceFolder": "/workspaces/plugin-email",
   "forwardPorts": [8080],
   "customizations": {
     "vscode": {
