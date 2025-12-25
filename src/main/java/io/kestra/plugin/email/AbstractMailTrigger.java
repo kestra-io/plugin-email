@@ -12,7 +12,6 @@ import lombok.experimental.SuperBuilder;
 
 import java.time.Duration;
 
-
 @SuperBuilder
 @Getter
 @NoArgsConstructor
