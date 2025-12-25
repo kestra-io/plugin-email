@@ -176,7 +176,8 @@ import static io.kestra.core.utils.Rethrow.throwFunction;
                       - 192.168.1.100
                 """
         )
-    }
+    },
+    aliases = "io.kestra.plugin.notifications.mail.MailSend"
 )
 public class MailSend extends Task implements RunnableTask<VoidOutput> {
     /* Server info */

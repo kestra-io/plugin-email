@@ -1,6 +1,6 @@
 group: io.kestra.plugin.email
-name: "mail"
-title: "Mail"
+name: "email"
+title: "Email"
 description: "Tasks that send email notifications."
 body: "Configure SMTP server/port, credentials, from/to addresses, subject, and body/attachments to send emails from workflows; supports TLS/SSL settings for secure delivery."
 videos: []

@@ -90,7 +90,8 @@ import java.util.concurrent.atomic.AtomicReference;
                     interval: PT30S
                 """
         )
-    }
+    },
+    aliases = "io.kestra.plugin.notifications.mail.RealTimeTrigger"
 )
 public class RealTimeTrigger extends AbstractMailTrigger
     implements RealtimeTriggerInterface, TriggerOutput<MailService.EmailData> {

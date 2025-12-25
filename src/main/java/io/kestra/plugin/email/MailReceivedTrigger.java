@@ -62,7 +62,8 @@ import java.util.Optional;
                     ssl: true
                 """
         )
-    }
+    },
+    aliases = "io.kestra.plugin.notifications.mail.MailReceivedTrigger"
 )
 public class MailReceivedTrigger extends AbstractMailTrigger
         implements PollingTriggerInterface, TriggerOutput<MailService.Output> {
