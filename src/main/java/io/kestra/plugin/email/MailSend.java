@@ -280,6 +280,14 @@ public class MailSend extends Task implements RunnableTask<VoidOutput> {
     )
     private Property<Object> embeddedImages;
 
+    @Schema(
+        title = "OAuth2 access token",
+        description = "Used only when transportStrategy is SMTP_OAUTH2. " +
+            "If provided, it will be used instead of password. " +
+            "The password field is treated as an OAuth2 access token when using SMTP_OAUTH2."
+    )
+    protected Property<String> accessToken;
+
     @Override
     public VoidOutput run(RunContext runContext) throws Exception {
         Thread.currentThread().setContextClassLoader(getClass().getClassLoader());
@@ -319,14 +327,33 @@ public class MailSend extends Task implements RunnableTask<VoidOutput> {
         Email email = builder.buildEmail();
 
         var rTrustedHosts = runContext.render(trustedHosts).asList(String.class);
+
+        TransportStrategy rStrategy = runContext.render(transportStrategy).as(TransportStrategy.class).orElse(TransportStrategy.SMTPS);
+        String rPassword = runContext.render(this.password).as(String.class).orElse(null);
+        String rAccessToken = runContext.render(this.accessToken).as(String.class).orElse(null);
+
+        String credential;
+
+        if (rStrategy == TransportStrategy.SMTP_OAUTH2) {
+            credential = rAccessToken != null ? rAccessToken : rPassword;
+
+            if (credential == null) {
+                throw new IllegalArgumentException(
+                    "When using SMTP_OAUTH2, either 'accessToken' or 'password' must be provided"
+                );
+            }
+        } else {
+            credential = rPassword;
+        }
+
         var mailerBuilder = MailerBuilder
             .withSMTPServer(
                 runContext.render(this.host).as(String.class).orElse(null),
                 runContext.render(this.port).as(Integer.class).orElse(null),
                 runContext.render(this.username).as(String.class).orElse(null),
-                runContext.render(this.password).as(String.class).orElse(null)
+                credential
             )
-            .withTransportStrategy(runContext.render(transportStrategy).as(TransportStrategy.class).orElse(TransportStrategy.SMTPS))
+            .withTransportStrategy(rStrategy)
             .withSessionTimeout(runContext.render(sessionTimeout).as(Integer.class).orElse(10000))
             .verifyingServerIdentity(runContext.render(verifyServerIdentity).as(Boolean.class).orElse(true));
 
