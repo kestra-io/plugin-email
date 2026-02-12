@@ -332,18 +332,18 @@ public class MailSend extends Task implements RunnableTask<VoidOutput> {
         String rPassword = runContext.render(this.password).as(String.class).orElse(null);
         String rAccessToken = runContext.render(this.accessToken).as(String.class).orElse(null);
 
-        String effectiveCredential;
+        String credential;
 
         if (rStrategy == TransportStrategy.SMTP_OAUTH2) {
-            effectiveCredential = rAccessToken != null ? rAccessToken : rPassword;
+            credential = rAccessToken != null ? rAccessToken : rPassword;
 
-            if (effectiveCredential == null) {
+            if (credential == null) {
                 throw new IllegalArgumentException(
                     "When using SMTP_OAUTH2, either 'accessToken' or 'password' must be provided"
                 );
             }
         } else {
-            effectiveCredential = rPassword;
+            credential = rPassword;
         }
 
         var mailerBuilder = MailerBuilder
@@ -351,7 +351,7 @@ public class MailSend extends Task implements RunnableTask<VoidOutput> {
                 runContext.render(this.host).as(String.class).orElse(null),
                 runContext.render(this.port).as(Integer.class).orElse(null),
                 runContext.render(this.username).as(String.class).orElse(null),
-                effectiveCredential
+                credential
             )
             .withTransportStrategy(rStrategy)
             .withSessionTimeout(runContext.render(sessionTimeout).as(Integer.class).orElse(10000))
