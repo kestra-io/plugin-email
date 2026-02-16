@@ -85,7 +85,7 @@ import static io.kestra.core.utils.Rethrow.throwFunction;
                     type: io.kestra.plugin.email.MailSend
                     from: hello@kestra.io
                     to: hello@kestra.io
-                    attachments: {{ inputs.attachments | toJson }}
+                    attachments: "{{ inputs.attachments | toJson }}"
                 """
         ),
         @Example(
