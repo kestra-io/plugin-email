@@ -31,10 +31,10 @@ public class MailService {
         @Schema(title = "Latest email received", description = "The most recent email that triggered this execution")
         private final EmailData latestEmail;
 
-        @Schema(title = "Total number of new emails found")
+        @Schema(title = "Total number of new emails found", description = "Count of emails returned in this trigger cycle")
         private final Integer total;
 
-        @Schema(title = "All new emails found")
+        @Schema(title = "All new emails found", description = "List of every email fetched during this evaluation")
         private final List<EmailData> emails;
     }
 
@@ -42,31 +42,31 @@ public class MailService {
     @Getter
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class EmailData implements io.kestra.core.models.tasks.Output {
-        @Schema(title = "Email subject")
+        @Schema(title = "Email subject", description = "Subject line of the received email")
         private final String subject;
 
-        @Schema(title = "Sender email address")
+        @Schema(title = "Sender email address", description = "Address from the From header")
         private final String from;
 
-        @Schema(title = "Recipient email addresses")
+        @Schema(title = "Recipient email addresses", description = "Addresses from the To header")
         private final List<String> to;
 
-        @Schema(title = "CC email addresses")
+        @Schema(title = "CC email addresses", description = "Addresses from the CC header")
         private final List<String> cc;
 
-        @Schema(title = "BCC email addresses")
+        @Schema(title = "BCC email addresses", description = "Addresses from the BCC header when available")
         private final List<String> bcc;
 
-        @Schema(title = "Email date")
+        @Schema(title = "Email date", description = "Message date as parsed from Received or Sent headers")
         private final ZonedDateTime date;
 
-        @Schema(title = "Email body content")
+        @Schema(title = "Email body content", description = "Text content extracted from the message parts")
         private final String body;
 
-        @Schema(title = "Message ID")
+        @Schema(title = "Message ID", description = "Unique message identifier from the email headers")
         private final String messageId;
 
-        @Schema(title = "Email attachments")
+        @Schema(title = "Email attachments", description = "Metadata describing each attachment")
         private final List<AttachmentInfo> attachments;
     }
 
@@ -74,13 +74,13 @@ public class MailService {
     @Getter
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class AttachmentInfo {
-        @Schema(title = "Attachment filename")
+        @Schema(title = "Attachment filename", description = "Filename as provided by the email")
         private final String filename;
 
-        @Schema(title = "Content type")
+        @Schema(title = "Content type", description = "Attachment MIME type reported by the sender")
         private final String contentType;
 
-        @Schema(title = "File size in bytes")
+        @Schema(title = "File size in bytes", description = "Attachment size when provided by the server")
         private final Integer size;
     }
 

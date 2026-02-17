@@ -28,8 +28,8 @@ import java.util.Optional;
 @Getter
 @NoArgsConstructor
 @Schema(
-    title = "Trigger on new email messages.",
-    description = "Monitor a mailbox for new emails via IMAP or POP3 protocols."
+    title = "Trigger Flow on new mailbox messages",
+    description = "Polls an IMAP or POP3 mailbox and starts one execution containing all newly detected emails. Uses the `interval` poll (default PT60S) against the INBOX with SSL enabled by default; relax SSL or set `trustAllCertificates` only when necessary."
 )
 @Plugin(
     examples = {

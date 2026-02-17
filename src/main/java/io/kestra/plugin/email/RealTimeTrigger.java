@@ -36,12 +36,9 @@ import java.util.concurrent.atomic.AtomicReference;
 @Getter
 @NoArgsConstructor
 @Schema(
-    title = "Trigger a flow when an email is received in real-time.",
+    title = "Trigger Flow on real-time emails",
     description = """
-        Monitor a mailbox for new emails via IMAP or POP3 protocols and create one execution per email received.
-        For IMAP, uses the IDLE command for true real-time monitoring.
-        For POP3, uses polling.
-        If you would like to process multiple emails in batch, use the MailReceivedTrigger instead.
+        Listens to a mailbox and creates one execution per email. IMAP uses IDLE for push-style delivery; POP3 falls back to polling on `interval` (default PT60S) with SSL enabled by default—relax TLS checks only when required. Use MailReceivedTrigger instead when batching multiple emails.
         """
 )
 @Plugin(

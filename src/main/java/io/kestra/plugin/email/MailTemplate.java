@@ -23,19 +23,22 @@ import java.util.Objects;
 @NoArgsConstructor
 public abstract class MailTemplate extends MailSend {
     @Schema(
-        title = "Template to use",
+        title = "HTML template resource",
+        description = "Classpath resource path for the HTML email template rendered before sending",
         hidden = true
     )
     protected Property<String> templateUri;
 
     @Schema(
-        title = "Text template to use",
+        title = "Plain text template resource",
+        description = "Classpath resource path for the text-only template rendered before sending",
         hidden = true
     )
     protected Property<String> textTemplateUri;
 
     @Schema(
-        title = "Map of variables to use for the message template"
+        title = "Template variables",
+        description = "Key-value map injected into the templates during rendering"
     )
     protected Property<Map<String, Object>> templateRenderMap;
 

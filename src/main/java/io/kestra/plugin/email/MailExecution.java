@@ -19,9 +19,8 @@ import java.util.Map;
 @Getter
 @NoArgsConstructor
 @Schema(
-    title = "Send an email with the execution information.",
-    description = "The message will include a link to the execution page in the UI along with the execution ID, namespace, flow name, the start date, duration, and the final status of the execution. If the task failed, then the task that led to the failure is specified.\n\n" +
-    "Use this notification task only in a flow that has a [Flow trigger](https://kestra.io/docs/administrator-guide/monitoring#alerting), as shown in this example. Don't use this notification task in `errors` tasks. Instead, for `errors` tasks, use the [MailSend](https://kestra.io/plugins/plugin-email/io.kestra.plugin.email.mailsend) task."
+    title = "Email a Flow execution summary",
+    description = "Sends a templated email that links to the execution page and includes the execution ID, namespace, flow name, start time, duration, final status, and the failing task when applicable. Uses built-in HTML and text templates with `executionId` defaulting to the current run. Use this in Flow-trigger alerting scenarios and prefer [MailSend](https://kestra.io/plugins/plugin-email/io.kestra.plugin.email.mailsend) for `errors` handlers; see [alerting docs](https://kestra.io/docs/administrator-guide/monitoring#alerting)."
 )
 @Plugin(
     examples = {
@@ -61,9 +60,23 @@ import java.util.Map;
     aliases = "io.kestra.plugin.notifications.mail.MailExecution"
 )
 public class MailExecution extends MailTemplate implements ExecutionInterface {
+    @Schema(
+        title = "Execution ID to describe",
+        description = "Execution identifier injected into the templates. Defaults to the current execution when left blank"
+    )
     @Builder.Default
     private final Property<String> executionId = Property.ofExpression("{{ execution.id }}");
+
+    @Schema(
+        title = "Custom fields for the template",
+        description = "Additional key-value map merged into the email templates alongside the execution data"
+    )
     private Property<Map<String, Object>> customFields;
+
+    @Schema(
+        title = "Custom message prefix",
+        description = "Optional freeform text appended to the rendered email body"
+    )
     private Property<String> customMessage;
 
     @Schema(
