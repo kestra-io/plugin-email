@@ -37,7 +37,8 @@ import static io.kestra.core.utils.Rethrow.throwFunction;
 @Getter
 @NoArgsConstructor
 @Schema(
-    title = "Send an automated email from a workflow."
+    title = "Send email from a Flow task",
+    description = "Builds and sends an email over SMTP/SMTPS/SMTP_TLS/SMTP_OAUTH2 with optional HTML, attachments, and embedded images. Defaults to SMTPS transport with a 10-second session timeout and server identity verification; provide credentials or an OAuth2 access token when required."
 )
 @Plugin(
     examples = {
@@ -182,109 +183,110 @@ import static io.kestra.core.utils.Rethrow.throwFunction;
 public class MailSend extends Task implements RunnableTask<VoidOutput> {
     /* Server info */
     @Schema(
-        title = "The email server host"
+        title = "SMTP server host",
+        description = "Hostname or IP of the SMTP relay used to send emails"
     )
     protected Property<String> host;
 
     @Schema(
-        title = "The email server port"
+        title = "SMTP server port",
+        description = "Override the SMTP port. Defaults come from the transport strategy (SMTPS often 465, TLS 587)"
     )
     private Property<Integer> port;
 
     @Schema(
-        title = "The email server username"
+        title = "SMTP username",
+        description = "Username for authenticating to the SMTP server if required"
     )
     protected Property<String> username;
 
     @Schema(
-        title = "The email server password"
+        title = "SMTP password",
+        description = "Password or secret used for SMTP authentication"
     )
     protected Property<String> password;
 
     @Schema(
-        title = "The optional transport strategy",
-        description = "Will default to SMTPS if left empty"
+        title = "SMTP transport strategy",
+        description = "Protocol used to send the email. Defaults to SMTPS; can be SMTP_TLS, SMTP, or SMTP_OAUTH2"
     )
     @Builder.Default
     private final Property<TransportStrategy> transportStrategy = Property.ofValue(TransportStrategy.SMTPS);
 
     @Schema(
-        title = "Integer value in milliseconds. Default is 10000 milliseconds, i.e. 10 seconds",
-        description = "It controls the maximum timeout value when sending emails."
+        title = "Session timeout (ms)",
+        description = "Maximum socket timeout while sending emails. Defaults to 10000 ms (10 seconds)"
     )
     @Builder.Default
     private final Property<Integer> sessionTimeout = Property.ofValue(10000);
 
     @Schema(
-        title = "Whether to verify the server identity",
-        description = "Will default to true if left empty"
+        title = "Verify server identity",
+        description = "Performs TLS server identity checks. Defaults to true; disable only for self-signed or internal servers"
     )
     @Builder.Default
     private final Property<Boolean> verifyServerIdentity = Property.ofValue(true);
 
     @Schema(
         title = "Trusted SSL/TLS hosts",
-        description = "If provided, only the specified hosts will be trusted for SSL/TLS connections"
+        description = "Restrict TLS trust to the specified hosts when working with internal or self-signed servers"
     )
     private Property<List<String>> trustedHosts;
 
     /* Mail info */
     @Schema(
-        title = "The address of the sender of this email"
+        title = "Sender address",
+        description = "RFC2822 From address presented to recipients"
     )
     protected Property<String> from;
 
     @Schema(
-        title = "Email address(es) of the recipient(s). Use semicolon as delimiter to provide several email addresses.",
-        description = "Note that each email address must be compliant with the RFC2822 format."
+        title = "Recipients (To)",
+        description = "Semicolon-delimited list of RFC2822 addresses for primary recipients"
     )
     protected Property<String> to;
 
     @Schema(
-        title = "One or more 'Cc' (carbon copy) optional recipient email address. Use semicolon as delimiter to provide several addresses.",
-        description = "Note that each email address must be compliant with the RFC2822 format."
+        title = "CC recipients",
+        description = "Optional semicolon-delimited RFC2822 addresses for carbon copy recipients"
     )
     protected Property<String> cc;
 
     @Schema(
-        title = "The optional subject of this email"
+        title = "Email subject",
+        description = "Optional subject line; template expressions are allowed"
     )
     protected Property<String> subject;
 
     @Schema(
-        title = "The optional email message body in HTML text",
-        description = "Both text and HTML can be provided; either will be offered to the email client as alternative content. " +
-            "Email clients that support it, will favor HTML over plain text and ignore the text body completely."
+        title = "HTML body",
+        description = "HTML version of the message body. Can be paired with plainTextContent; most clients prefer HTML over plain text"
     )
     protected Property<String> htmlTextContent;
 
     @Schema(
-        title = "The optional email message body in plain text",
-        description = "Both text and HTML can be provided; either will be offered to the email client as alternative content. " +
-            "Email clients that support it, will favor HTML over plain text and ignore the text body completely."
+        title = "Plain text body",
+        description = "Plain-text alternative used when HTML is not supported"
     )
     protected Property<String> plainTextContent;
 
     @Schema(
-        title = "Adds an attachment to the email message",
-        description = "The attachment will be shown in the email client as separate files available for download or display. " +
-            "Inline if the client supports it (for example, most browsers display PDF's in a popup window).",
+        title = "Attachments",
+        description = "Attachments to include, provided as a list or JSON string. Shown as separate files; some clients preview common types inline",
         anyOf = {List.class, String.class} // Can be a List<Attachment> or a String like "{{ inputs.attachments | toJson }})"
     )
     private Property<Object> attachments;
 
     @Schema(
-        title = "Adds image data to this email that can be referred to from the email HTML body.",
-        description = "The provided images are assumed to be of MIME type png, jpg, or whatever the email client supports as valid image that can be embedded in HTML content.",
+        title = "Embedded images",
+        description = "Images referenced from the HTML body via content IDs; accepts a list or JSON and expects common image MIME types",
         anyOf = {List.class, String.class} // Can be a List<Attachment> or a String like "{{ inputs.attachments | toJson }})"
     )
     private Property<Object> embeddedImages;
 
     @Schema(
         title = "OAuth2 access token",
-        description = "Used only when transportStrategy is SMTP_OAUTH2. " +
-            "If provided, it will be used instead of password. " +
-            "The password field is treated as an OAuth2 access token when using SMTP_OAUTH2."
+        description = "Used when transportStrategy is SMTP_OAUTH2. Overrides password when provided; otherwise password is treated as the token"
     )
     protected Property<String> accessToken;
 
@@ -452,21 +454,22 @@ public class MailSend extends Task implements RunnableTask<VoidOutput> {
     @Builder
     public static class Attachment {
         @Schema(
-            title = "An attachment URI from Kestra internal storage"
+            title = "Attachment URI in internal storage",
+            description = "URI (for example, `kestra://...`) pointing to the attachment content in Kestra internal storage"
         )
         @NotNull
         private Property<String> uri;
 
         @Schema(
-            title = "The name of the attachment (e.g., 'filename.txt')"
+            title = "Attachment filename",
+            description = "Name presented to recipients, for example `report.csv`"
         )
         @NotNull
         private Property<String> name;
 
         @Schema(
-            title = "The media type or MIME (Multipurpose Internet Mail Extensions) type of the resource being sent",
-            description = "For example, 'text/plain', 'image/png', 'application/pdf', `text/csv`, etc. " +
-                "If not provided, it will default to 'application/octet-stream'."
+            title = "Attachment content type",
+            description = "MIME type such as `text/plain`, `image/png`, `application/pdf`, or `text/csv`. Defaults to `application/octet-stream`"
         )
         @NotNull
         @Builder.Default

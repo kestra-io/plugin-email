@@ -20,38 +20,38 @@ public abstract class AbstractMailTrigger extends AbstractTrigger {
     public Duration getInterval(){
         return Duration.ofSeconds(60);
     }
-    @Schema(title = "Mail server protocol", description = "The protocol to use for connecting to the mail server")
+    @Schema(title = "Choose mail protocol", description = "Protocol used to connect to the mailbox (IMAP or POP3). Defaults to IMAP")
     @Builder.Default
     protected final Property<MailService.Protocol> protocol = Property.ofValue(MailService.Protocol.IMAP);
 
-    @Schema(title = "Mail server host", description = "The hostname or IP address of the mail server")
+    @Schema(title = "Mail server host", description = "Hostname or IP address for the mailbox connection")
     @NotNull
     protected Property<String> host;
 
-    @Schema(title = "Mail server port", description = "The port number of the mail server. Defaults: IMAP=993 (SSL), 143 (non-SSL); POP3=995 (SSL), 110 (non-SSL)")
+    @Schema(title = "Mail server port", description = "Override the connection port. Defaults: IMAP 993/143, POP3 995/110 depending on SSL")
     protected Property<Integer> port;
 
-    @Schema(title = "Username", description = "The username for authentication")
+    @Schema(title = "Username", description = "Username used to authenticate against the mailbox")
     @NotNull
     protected Property<String> username;
 
-    @Schema(title = "Password", description = "The password for authentication")
+    @Schema(title = "Password", description = "Password or secret for mailbox authentication")
     @NotNull
     protected Property<String> password;
 
-    @Schema(title = "Mail folder", description = "The mail folder to monitor (IMAP only)")
+    @Schema(title = "Mail folder", description = "Folder to monitor (IMAP only). Defaults to INBOX")
     @Builder.Default
     protected final Property<String> folder = Property.ofValue("INBOX");
 
-    @Schema(title = "Use SSL", description = "Whether to use SSL/TLS encryption")
+    @Schema(title = "Use SSL/TLS", description = "Enable TLS for the mailbox connection. Defaults to true")
     @Builder.Default
     protected final Property<Boolean> ssl = Property.ofValue(true);
 
-    @Schema(title = "Trust all certificates", description = "Whether to trust all SSL certificates (use with caution)")
+    @Schema(title = "Trust all certificates", description = "Skip TLS certificate validation (testing only). Defaults to false")
     @Builder.Default
     protected final Property<Boolean> trustAllCertificates = Property.ofValue(false);
 
-    @Schema(title = "Check interval", description = "How frequently to check for new emails")
+    @Schema(title = "Check interval", description = "Frequency for polling-based checks as an ISO-8601 duration. Default PT60S")
     @Builder.Default
     protected final Property<Duration> interval = Property.ofValue(Duration.ofSeconds(60));
 
