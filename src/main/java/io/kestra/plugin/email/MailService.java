@@ -1,7 +1,14 @@
 package io.kestra.plugin.email;
 
+import java.io.IOException;
+import java.time.Duration;
+import java.time.ZonedDateTime;
+import java.util.*;
+
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
 import io.kestra.core.runners.RunContext;
+
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.mail.*;
 import jakarta.mail.internet.InternetAddress;
@@ -10,11 +17,6 @@ import jakarta.mail.internet.MimeMultipart;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.experimental.UtilityClass;
-
-import java.io.IOException;
-import java.time.Duration;
-import java.time.ZonedDateTime;
-import java.util.*;
 
 @UtilityClass
 public class MailService {
@@ -99,7 +101,7 @@ public class MailService {
     }
 
     public static Properties setupMailProperties(String protocol, String host, Integer port, Boolean ssl,
-            Boolean trustAllCertificates, RunContext runContext) {
+        Boolean trustAllCertificates, RunContext runContext) {
         Properties props = new Properties();
         String protocolName = getProtocolName(protocol, ssl);
 
@@ -133,7 +135,7 @@ public class MailService {
     }
 
     public static void connectToStore(Store store, String host, Integer port, String username,
-            String password, RunContext runContext) throws MessagingException {
+        String password, RunContext runContext) throws MessagingException {
         try {
             store.connect(host, port, username, password);
         } catch (MessagingException e) {
@@ -152,20 +154,20 @@ public class MailService {
     public static EmailData parseEmailData(MimeMessage message) throws MessagingException, IOException {
         Date receivedDate = message.getReceivedDate() != null ? message.getReceivedDate() : message.getSentDate();
         ZonedDateTime date = receivedDate != null
-                ? ZonedDateTime.ofInstant(receivedDate.toInstant(), ZonedDateTime.now().getZone())
-                : ZonedDateTime.now();
+            ? ZonedDateTime.ofInstant(receivedDate.toInstant(), ZonedDateTime.now().getZone())
+            : ZonedDateTime.now();
 
         return EmailData.builder()
-                .subject(message.getSubject())
-                .from(getAddressString(message.getFrom()))
-                .to(getAddressList(message.getRecipients(Message.RecipientType.TO)))
-                .cc(getAddressList(message.getRecipients(Message.RecipientType.CC)))
-                .bcc(getAddressList(message.getRecipients(Message.RecipientType.BCC)))
-                .date(date)
-                .body(extractTextContent(message))
-                .messageId(message.getMessageID())
-                .attachments(extractAttachments(message))
-                .build();
+            .subject(message.getSubject())
+            .from(getAddressString(message.getFrom()))
+            .to(getAddressList(message.getRecipients(Message.RecipientType.TO)))
+            .cc(getAddressList(message.getRecipients(Message.RecipientType.CC)))
+            .bcc(getAddressList(message.getRecipients(Message.RecipientType.BCC)))
+            .date(date)
+            .body(extractTextContent(message))
+            .messageId(message.getMessageID())
+            .attachments(extractAttachments(message))
+            .build();
     }
 
     private static String getAddressString(Address[] addresses) {
@@ -180,8 +182,8 @@ public class MailService {
             return Collections.emptyList();
         }
         return Arrays.stream(addresses)
-                .map(addr -> ((InternetAddress) addr).getAddress())
-                .toList();
+            .map(addr -> ((InternetAddress) addr).getAddress())
+            .toList();
     }
 
     private static String extractTextContent(Message message) throws MessagingException, IOException {
@@ -220,20 +222,22 @@ public class MailService {
     }
 
     private static void extractAttachmentsFromMultipart(MimeMultipart multipart, List<AttachmentInfo> attachments)
-            throws MessagingException, IOException {
+        throws MessagingException, IOException {
         int count = multipart.getCount();
 
         for (int i = 0; i < count; i++) {
             BodyPart bodyPart = multipart.getBodyPart(i);
 
-            if (Part.ATTACHMENT.equalsIgnoreCase(bodyPart.getDisposition()) ||
-                    (bodyPart.getFileName() != null && !bodyPart.getFileName().isEmpty())) {
+            if (
+                Part.ATTACHMENT.equalsIgnoreCase(bodyPart.getDisposition()) ||
+                    (bodyPart.getFileName() != null && !bodyPart.getFileName().isEmpty())
+            ) {
 
                 AttachmentInfo attachment = AttachmentInfo.builder()
-                        .filename(bodyPart.getFileName())
-                        .contentType(bodyPart.getContentType())
-                        .size(bodyPart.getSize())
-                        .build();
+                    .filename(bodyPart.getFileName())
+                    .contentType(bodyPart.getContentType())
+                    .size(bodyPart.getSize())
+                    .build();
 
                 attachments.add(attachment);
             } else if (bodyPart.isMimeType("multipart/*")) {
@@ -243,8 +247,8 @@ public class MailService {
     }
 
     public static List<EmailData> fetchNewEmails(RunContext runContext, String protocol, String host, Integer port,
-                                                 String username, String password, String folder, Boolean ssl, Boolean trustAllCertificates,
-                                                 ZonedDateTime lastCheckTime) throws MessagingException, IOException {
+        String username, String password, String folder, Boolean ssl, Boolean trustAllCertificates,
+        ZonedDateTime lastCheckTime) throws MessagingException, IOException {
 
         Properties props = setupMailProperties(protocol, host, port, ssl, trustAllCertificates, runContext);
         String protocolName = getProtocolName(protocol, ssl);
@@ -266,10 +270,10 @@ public class MailService {
     }
 
     private static List<EmailData> processMessages(Store store, String folder, ZonedDateTime lastCheckTime,
-            RunContext runContext) throws MessagingException, IOException {
+        RunContext runContext) throws MessagingException, IOException {
         List<EmailData> newEmails = new ArrayList<>();
         Folder mailFolder = store.getFolder(folder);
-        try{
+        try {
             mailFolder.open(Folder.READ_ONLY);
 
             int messageCount = mailFolder.getMessageCount();
@@ -288,23 +292,29 @@ public class MailService {
             for (Message message : messages) {
                 if (message instanceof MimeMessage mimeMessage) {
                     Date receivedDate = message.getReceivedDate() != null ? message.getReceivedDate()
-                            : message.getSentDate();
+                        : message.getSentDate();
 
                     if (receivedDate != null) {
-                        ZonedDateTime messageDate = ZonedDateTime.ofInstant(receivedDate.toInstant(),
-                                lastCheckTime.getZone());
+                        ZonedDateTime messageDate = ZonedDateTime.ofInstant(
+                            receivedDate.toInstant(),
+                            lastCheckTime.getZone()
+                        );
 
-                        runContext.logger().debug("Message date: {}, Last check: {}, Is newer: {}",
-                                messageDate, lastCheckTime, messageDate.isAfter(lastCheckTime));
+                        runContext.logger().debug(
+                            "Message date: {}, Last check: {}, Is newer: {}",
+                            messageDate, lastCheckTime, messageDate.isAfter(lastCheckTime)
+                        );
 
                         if (messageDate.isAfter(lastCheckTime)) {
                             EmailData emailData = parseEmailData(mimeMessage);
                             if (emailData != null) {
                                 newEmails.add(emailData);
-                                runContext.logger().info("New email - Subject: '{}', From: '{}', Body: '{}'",
-                                        emailData.getSubject(), emailData.getFrom(),
-                                        emailData.getBody().length() > 100 ? emailData.getBody().substring(0, 100) + "..."
-                                                : emailData.getBody());
+                                runContext.logger().info(
+                                    "New email - Subject: '{}', From: '{}', Body: '{}'",
+                                    emailData.getSubject(), emailData.getFrom(),
+                                    emailData.getBody().length() > 100 ? emailData.getBody().substring(0, 100) + "..."
+                                        : emailData.getBody()
+                                );
                             }
                         }
                     } else {
@@ -312,7 +322,7 @@ public class MailService {
                     }
                 }
             }
-    } finally {
+        } finally {
             if (mailFolder.isOpen()) {
                 try {
                     mailFolder.close(false);

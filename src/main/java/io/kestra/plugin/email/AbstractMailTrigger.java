@@ -1,8 +1,11 @@
 package io.kestra.plugin.email;
 
+import java.time.Duration;
+
 import io.kestra.core.models.property.Property;
 import io.kestra.core.models.triggers.AbstractTrigger;
 import io.kestra.core.runners.RunContext;
+
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotNull;
 import lombok.Builder;
@@ -10,16 +13,15 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 
-import java.time.Duration;
-
 @SuperBuilder
 @Getter
 @NoArgsConstructor
 public abstract class AbstractMailTrigger extends AbstractTrigger {
 
-    public Duration getInterval(){
+    public Duration getInterval() {
         return Duration.ofSeconds(60);
     }
+
     @Schema(title = "Choose mail protocol", description = "Protocol used to connect to the mailbox (IMAP or POP3). Defaults to IMAP")
     @Builder.Default
     protected final Property<MailService.Protocol> protocol = Property.ofValue(MailService.Protocol.IMAP);

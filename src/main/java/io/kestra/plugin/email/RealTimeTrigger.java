@@ -1,5 +1,17 @@
 package io.kestra.plugin.email;
 
+import java.time.Duration;
+import java.time.ZonedDateTime;
+import java.util.List;
+import java.util.Objects;
+import java.util.Properties;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+
+import org.eclipse.angus.mail.imap.IMAPFolder;
+import org.reactivestreams.Publisher;
+
 import io.kestra.core.models.annotations.Example;
 import io.kestra.core.models.annotations.Plugin;
 import io.kestra.core.models.conditions.ConditionContext;
@@ -9,6 +21,7 @@ import io.kestra.core.models.triggers.TriggerContext;
 import io.kestra.core.models.triggers.TriggerOutput;
 import io.kestra.core.models.triggers.TriggerService;
 import io.kestra.core.runners.RunContext;
+
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.mail.*;
 import jakarta.mail.event.MessageCountEvent;
@@ -16,19 +29,8 @@ import jakarta.mail.event.MessageCountListener;
 import jakarta.mail.internet.MimeMessage;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
-import org.eclipse.angus.mail.imap.IMAPFolder;
-import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.FluxSink;
-
-import java.time.Duration;
-import java.time.ZonedDateTime;
-import java.util.List;
-import java.util.Objects;
-import java.util.Properties;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 
 @SuperBuilder
 @ToString
@@ -118,18 +120,25 @@ public class RealTimeTrigger extends AbstractMailTrigger
         RunContext runContext = conditionContext.getRunContext();
         MailService.MailConfiguration mailConfig = renderMailConfiguration(runContext);
 
-        runContext.logger().info("Starting real-time email monitoring using {} protocol on {}:{}",
-            mailConfig.protocol, mailConfig.host, mailConfig.port);
+        runContext.logger().info(
+            "Starting real-time email monitoring using {} protocol on {}:{}",
+            mailConfig.protocol, mailConfig.host, mailConfig.port
+        );
 
         return createRealtimeEmailStream(runContext, mailConfig)
-            .map(emailData -> {
-                runContext.logger().info("Real-time trigger: New email from '{}' with subject '{}'",
-                    emailData.getFrom(), emailData.getSubject());
+            .map(emailData ->
+            {
+                runContext.logger().info(
+                    "Real-time trigger: New email from '{}' with subject '{}'",
+                    emailData.getFrom(), emailData.getSubject()
+                );
                 return TriggerService.generateRealtimeExecution(this, conditionContext, context, emailData);
             })
             .onErrorContinue(
-                (throwable, o) -> runContext.logger().error("Error in real-time email stream", throwable))
-            .doFinally(signalType -> {
+                (throwable, o) -> runContext.logger().error("Error in real-time email stream", throwable)
+            )
+            .doFinally(signalType ->
+            {
                 runContext.logger().info("Email stream finished with signal: {}", signalType);
                 this.waitForTermination.countDown();
             });
@@ -144,18 +153,23 @@ public class RealTimeTrigger extends AbstractMailTrigger
     }
 
     private Flux<MailService.EmailData> createImapIdleStream(RunContext runContext, MailService.MailConfiguration config) {
-        return Flux.create(sink -> {
+        return Flux.create(sink ->
+        {
             Store store = null;
             IMAPFolder Imapfolder = null;
 
             try {
-                Properties props = MailService.setupMailProperties(config.protocol, config.host, config.port,
-                    config.ssl, config.trustAllCertificates, runContext);
+                Properties props = MailService.setupMailProperties(
+                    config.protocol, config.host, config.port,
+                    config.ssl, config.trustAllCertificates, runContext
+                );
                 Session session = Session.getInstance(props, null);
                 store = session.getStore(MailService.getProtocolName(config.protocol, config.ssl));
 
-                MailService.connectToStore(store, config.host, config.port, config.username, config.password,
-                    runContext);
+                MailService.connectToStore(
+                    store, config.host, config.port, config.username, config.password,
+                    runContext
+                );
                 Imapfolder = (IMAPFolder) store.getFolder(config.folder);
                 Imapfolder.open(Folder.READ_ONLY);
 
@@ -178,8 +192,10 @@ public class RealTimeTrigger extends AbstractMailTrigger
                                 if (message instanceof MimeMessage mimeMessage) {
                                     MailService.EmailData emailData = MailService.parseEmailData(mimeMessage);
                                     if (emailData != null) {
-                                        runContext.logger().info("IMAP IDLE: New email - Subject: '{}', From: '{}'",
-                                            emailData.getSubject(), emailData.getFrom());
+                                        runContext.logger().info(
+                                            "IMAP IDLE: New email - Subject: '{}', From: '{}'",
+                                            emailData.getSubject(), emailData.getFrom()
+                                        );
                                         sink.next(emailData);
                                     }
                                 }
@@ -192,7 +208,8 @@ public class RealTimeTrigger extends AbstractMailTrigger
                     }
 
                     @Override
-                    public void messagesRemoved(MessageCountEvent e) {}
+                    public void messagesRemoved(MessageCountEvent e) {
+                    }
                 });
 
                 while (isActive.get() && folder.isOpen()) {
@@ -261,7 +278,8 @@ public class RealTimeTrigger extends AbstractMailTrigger
         return Flux.interval(Duration.ZERO, config.interval)
             .takeWhile(tick -> isActive.get())
             .doOnNext(tick -> runContext.logger().info("POP3 polling cycle: {}", tick))
-            .flatMap(tick -> {
+            .flatMap(tick ->
+            {
                 try {
                     if (!isActive.get()) {
                         return Flux.empty();
@@ -270,9 +288,11 @@ public class RealTimeTrigger extends AbstractMailTrigger
                     ZonedDateTime currentLastFetched = lastFetched.get();
                     runContext.logger().info("POP3 polling: checking for emails after {}", currentLastFetched);
 
-                    List<MailService.EmailData> newEmails = MailService.fetchNewEmails(runContext, config.protocol,
+                    List<MailService.EmailData> newEmails = MailService.fetchNewEmails(
+                        runContext, config.protocol,
                         config.host, config.port, config.username, config.password, config.folder,
-                        config.ssl, config.trustAllCertificates, currentLastFetched);
+                        config.ssl, config.trustAllCertificates, currentLastFetched
+                    );
 
                     if (!newEmails.isEmpty()) {
                         ZonedDateTime latestEmailDate = newEmails.stream()
@@ -283,8 +303,10 @@ public class RealTimeTrigger extends AbstractMailTrigger
 
                         lastFetched.set(latestEmailDate);
 
-                        runContext.logger().info("POP3 polling: found {} new emails, updated lastFetched to {}",
-                            newEmails.size(), latestEmailDate);
+                        runContext.logger().info(
+                            "POP3 polling: found {} new emails, updated lastFetched to {}",
+                            newEmails.size(), latestEmailDate
+                        );
                     } else {
                         runContext.logger().info("POP3 polling: no new emails found");
                     }

@@ -1,5 +1,11 @@
 package io.kestra.plugin.email;
 
+import java.time.Duration;
+import java.time.ZonedDateTime;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Optional;
+
 import io.kestra.core.models.annotations.Example;
 import io.kestra.core.models.annotations.Plugin;
 import io.kestra.core.models.conditions.ConditionContext;
@@ -9,18 +15,13 @@ import io.kestra.core.models.triggers.TriggerContext;
 import io.kestra.core.models.triggers.TriggerOutput;
 import io.kestra.core.models.triggers.TriggerService;
 import io.kestra.core.runners.RunContext;
+
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.ToString;
 import lombok.experimental.SuperBuilder;
-
-import java.time.Duration;
-import java.time.ZonedDateTime;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Optional;
 
 @SuperBuilder
 @ToString
@@ -66,7 +67,7 @@ import java.util.Optional;
     aliases = "io.kestra.plugin.notifications.mail.MailReceivedTrigger"
 )
 public class MailReceivedTrigger extends AbstractMailTrigger
-        implements PollingTriggerInterface, TriggerOutput<MailService.Output> {
+    implements PollingTriggerInterface, TriggerOutput<MailService.Output> {
 
     @Override
     public Optional<Execution> evaluate(ConditionContext conditionContext, TriggerContext context) throws Exception {
@@ -74,25 +75,27 @@ public class MailReceivedTrigger extends AbstractMailTrigger
         MailService.MailConfiguration mailConfig = renderMailConfiguration(runContext);
 
         try {
-            ZonedDateTime lastCheckTime = getLastCheckTime(context,mailConfig.interval);
-            List<MailService.EmailData> newEmails = MailService.fetchNewEmails(runContext, mailConfig.protocol,
-                    mailConfig.host, mailConfig.port,
-                    mailConfig.username, mailConfig.password, mailConfig.folder, mailConfig.ssl,
-                    mailConfig.trustAllCertificates, lastCheckTime);
+            ZonedDateTime lastCheckTime = getLastCheckTime(context, mailConfig.interval);
+            List<MailService.EmailData> newEmails = MailService.fetchNewEmails(
+                runContext, mailConfig.protocol,
+                mailConfig.host, mailConfig.port,
+                mailConfig.username, mailConfig.password, mailConfig.folder, mailConfig.ssl,
+                mailConfig.trustAllCertificates, lastCheckTime
+            );
 
             if (newEmails.isEmpty()) {
                 return Optional.empty();
             }
 
             MailService.EmailData latest = newEmails.stream()
-                    .max(Comparator.comparing(MailService.EmailData::getDate))
-                    .orElse(newEmails.getFirst());
+                .max(Comparator.comparing(MailService.EmailData::getDate))
+                .orElse(newEmails.getFirst());
 
             MailService.Output output = MailService.Output.builder()
-                    .latestEmail(latest)
-                    .total(newEmails.size())
-                    .emails(newEmails)
-                    .build();
+                .latestEmail(latest)
+                .total(newEmails.size())
+                .emails(newEmails)
+                .build();
 
             Execution execution = TriggerService.generateExecution(this, conditionContext, context, output);
             return Optional.of(execution);
@@ -103,10 +106,10 @@ public class MailReceivedTrigger extends AbstractMailTrigger
         }
     }
 
-    private ZonedDateTime getLastCheckTime(TriggerContext context,Duration interval){
-            if(context.getNextExecutionDate()==null){
-                return ZonedDateTime.now().minus(getInterval());
-            }
+    private ZonedDateTime getLastCheckTime(TriggerContext context, Duration interval) {
+        if (context.getNextExecutionDate() == null) {
+            return ZonedDateTime.now().minus(getInterval());
+        }
         return context.getNextExecutionDate().minus(interval);
     }
 }

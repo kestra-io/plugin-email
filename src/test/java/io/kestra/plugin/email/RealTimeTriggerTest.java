@@ -1,16 +1,5 @@
 package io.kestra.plugin.email;
 
-import io.kestra.core.models.executions.Execution;
-import io.kestra.core.models.flows.Flow;
-import io.kestra.core.models.flows.FlowWithSource;
-import io.kestra.core.models.property.Property;
-import io.kestra.core.runners.FlowListeners;
-import io.kestra.core.utils.Await;
-import io.kestra.core.utils.TestsUtils;
-import io.kestra.plugin.core.debug.Return;
-import org.junit.jupiter.api.Test;
-import reactor.core.publisher.Flux;
-
 import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
@@ -19,6 +8,19 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
+
+import org.junit.jupiter.api.Test;
+
+import io.kestra.core.models.executions.Execution;
+import io.kestra.core.models.flows.Flow;
+import io.kestra.core.models.flows.FlowWithSource;
+import io.kestra.core.models.property.Property;
+import io.kestra.core.runners.FlowListeners;
+import io.kestra.core.utils.Await;
+import io.kestra.core.utils.TestsUtils;
+import io.kestra.plugin.core.debug.Return;
+
+import reactor.core.publisher.Flux;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
@@ -48,12 +50,19 @@ class RealTimeTriggerTest extends AbstractTriggerTest {
             .id("real-time-trigger-pop3")
             .namespace("io.kestra.tests")
             .revision(1)
-            .tasks(Collections.singletonList(Return.builder()
-                .id("process-pop3-emails")
-                .type(Return.class.getName())
-                .format(Property.ofValue(
-                    "POP3 email received: {{trigger.subject}} from {{trigger.from}}"))
-                .build()))
+            .tasks(
+                Collections.singletonList(
+                    Return.builder()
+                        .id("process-pop3-emails")
+                        .type(Return.class.getName())
+                        .format(
+                            Property.ofValue(
+                                "POP3 email received: {{trigger.subject}} from {{trigger.from}}"
+                            )
+                        )
+                        .build()
+                )
+            )
             .triggers(Collections.singletonList(mailTrigger))
             .build();
 
@@ -63,15 +72,18 @@ class RealTimeTriggerTest extends AbstractTriggerTest {
         CountDownLatch queueCount = new CountDownLatch(1);
         AtomicReference<Execution> lastExecution = new AtomicReference<>();
 
-        Flux<Execution> receive = TestsUtils.receive(executionQueue, execution -> {
+        Flux<Execution> receive = TestsUtils.receive(executionQueue, execution ->
+        {
             if (execution.getLeft().getFlowId().equals("real-time-trigger-pop3")) {
                 lastExecution.set(execution.getLeft());
                 queueCount.countDown();
             }
         });
 
-        TestContext testContext = new TestContext(applicationContext, flowListenersServiceSpy, executionQueue,
-            "real-time-trigger-pop3", queueCount);
+        TestContext testContext = new TestContext(
+            applicationContext, flowListenersServiceSpy, executionQueue,
+            "real-time-trigger-pop3", queueCount
+        );
 
         try {
             testContext.start();
@@ -125,12 +137,19 @@ class RealTimeTriggerTest extends AbstractTriggerTest {
             .id("real-time-trigger-imap")
             .namespace("io.kestra.tests")
             .revision(1)
-            .tasks(Collections.singletonList(Return.builder()
-                .id("process-imap-emails")
-                .type(Return.class.getName())
-                .format(Property.ofValue(
-                    "IMAP email received: {{trigger.subject}} from {{trigger.from}}"))
-                .build()))
+            .tasks(
+                Collections.singletonList(
+                    Return.builder()
+                        .id("process-imap-emails")
+                        .type(Return.class.getName())
+                        .format(
+                            Property.ofValue(
+                                "IMAP email received: {{trigger.subject}} from {{trigger.from}}"
+                            )
+                        )
+                        .build()
+                )
+            )
             .triggers(Collections.singletonList(mailTrigger))
             .build();
 
@@ -140,15 +159,18 @@ class RealTimeTriggerTest extends AbstractTriggerTest {
         CountDownLatch queueCount = new CountDownLatch(1);
         AtomicReference<Execution> lastExecution = new AtomicReference<>();
 
-        Flux<Execution> receive = TestsUtils.receive(executionQueue, execution -> {
+        Flux<Execution> receive = TestsUtils.receive(executionQueue, execution ->
+        {
             if (execution.getLeft().getFlowId().equals("real-time-trigger-imap")) {
                 lastExecution.set(execution.getLeft());
                 queueCount.countDown();
             }
         });
 
-        TestContext testContext = new TestContext(applicationContext, flowListenersServiceSpy, executionQueue,
-            "real-time-trigger-imap", queueCount);
+        TestContext testContext = new TestContext(
+            applicationContext, flowListenersServiceSpy, executionQueue,
+            "real-time-trigger-imap", queueCount
+        );
 
         try {
             testContext.start();

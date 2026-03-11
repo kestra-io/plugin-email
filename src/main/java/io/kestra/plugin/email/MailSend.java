@@ -1,20 +1,10 @@
 package io.kestra.plugin.email;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import io.kestra.core.models.annotations.Example;
-import io.kestra.core.models.annotations.Plugin;
-import io.kestra.core.models.property.Property;
-import io.kestra.core.models.tasks.RunnableTask;
-import io.kestra.core.models.tasks.Task;
-import io.kestra.core.models.tasks.VoidOutput;
-import io.kestra.core.runners.RunContext;
-import io.kestra.core.serializers.JacksonMapper;
-import io.swagger.v3.oas.annotations.media.Schema;
-import jakarta.mail.util.ByteArrayDataSource;
-import jakarta.validation.constraints.NotNull;
-import lombok.*;
-import lombok.experimental.SuperBuilder;
+import java.io.InputStream;
+import java.net.URI;
+import java.util.List;
+import java.util.Map;
+
 import org.simplejavamail.api.email.AttachmentResource;
 import org.simplejavamail.api.email.Email;
 import org.simplejavamail.api.email.EmailPopulatingBuilder;
@@ -24,10 +14,23 @@ import org.simplejavamail.email.EmailBuilder;
 import org.simplejavamail.mailer.MailerBuilder;
 import org.slf4j.Logger;
 
-import java.io.InputStream;
-import java.net.URI;
-import java.util.List;
-import java.util.Map;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+
+import io.kestra.core.models.annotations.Example;
+import io.kestra.core.models.annotations.Plugin;
+import io.kestra.core.models.property.Property;
+import io.kestra.core.models.tasks.RunnableTask;
+import io.kestra.core.models.tasks.Task;
+import io.kestra.core.models.tasks.VoidOutput;
+import io.kestra.core.runners.RunContext;
+import io.kestra.core.serializers.JacksonMapper;
+
+import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.mail.util.ByteArrayDataSource;
+import jakarta.validation.constraints.NotNull;
+import lombok.*;
+import lombok.experimental.SuperBuilder;
 
 import static io.kestra.core.utils.Rethrow.throwFunction;
 
@@ -273,14 +276,14 @@ public class MailSend extends Task implements RunnableTask<VoidOutput> {
     @Schema(
         title = "Attachments",
         description = "Attachments to include, provided as a list or JSON string. Shown as separate files; some clients preview common types inline",
-        anyOf = {List.class, String.class} // Can be a List<Attachment> or a String like "{{ inputs.attachments | toJson }})"
+        anyOf = { List.class, String.class } // Can be a List<Attachment> or a String like "{{ inputs.attachments | toJson }})"
     )
     private Property<Object> attachments;
 
     @Schema(
         title = "Embedded images",
         description = "Images referenced from the HTML body via content IDs; accepts a list or JSON and expects common image MIME types",
-        anyOf = {List.class, String.class} // Can be a List<Attachment> or a String like "{{ inputs.attachments | toJson }})"
+        anyOf = { List.class, String.class } // Can be a List<Attachment> or a String like "{{ inputs.attachments | toJson }})"
     )
     private Property<Object> embeddedImages;
 
@@ -375,7 +378,8 @@ public class MailSend extends Task implements RunnableTask<VoidOutput> {
     private List<AttachmentResource> attachmentResources(List<Attachment> attachments, RunContext runContext) throws Exception {
         return attachments
             .stream()
-            .map(throwFunction(attachment -> {
+            .map(throwFunction(attachment ->
+            {
                 InputStream inputStream = runContext.storage()
                     .getFile(URI.create(runContext.render(attachment.getUri()).as(String.class).orElseThrow()));
 
@@ -394,7 +398,8 @@ public class MailSend extends Task implements RunnableTask<VoidOutput> {
             }
 
             case List<?> list -> {
-                if (list.isEmpty()) return List.of();
+                if (list.isEmpty())
+                    return List.of();
 
                 if (list.getFirst() instanceof Attachment) {
                     @SuppressWarnings("unchecked")
@@ -409,7 +414,8 @@ public class MailSend extends Task implements RunnableTask<VoidOutput> {
 
             case String content -> {
                 String trimmed = content.trim();
-                if (trimmed.isEmpty()) return List.of();
+                if (trimmed.isEmpty())
+                    return List.of();
 
                 if (trimmed.startsWith("[") || trimmed.startsWith("{")) {
                     return parseJsonAttachmentString(trimmed);
@@ -442,11 +448,13 @@ public class MailSend extends Task implements RunnableTask<VoidOutput> {
 
     private static List<Attachment> toAttachments(List<Map<String, Object>> items) {
         return items.stream()
-            .map(item -> Attachment.builder()
-                .name(Property.ofValue((String) item.get("name")))
-                .uri(Property.ofValue((String) item.get("uri")))
-                .contentType(Property.ofValue((String) item.getOrDefault("contentType", "application/octet-stream")))
-                .build())
+            .map(
+                item -> Attachment.builder()
+                    .name(Property.ofValue((String) item.get("name")))
+                    .uri(Property.ofValue((String) item.get("uri")))
+                    .contentType(Property.ofValue((String) item.getOrDefault("contentType", "application/octet-stream")))
+                    .build()
+            )
             .toList();
     }
 

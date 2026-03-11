@@ -1,31 +1,5 @@
 package io.kestra.plugin.email;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.io.Files;
-import com.icegreen.greenmail.junit5.GreenMailExtension;
-import com.icegreen.greenmail.util.ServerSetupTest;
-import io.kestra.core.junit.annotations.KestraTest;
-import io.kestra.core.models.property.Property;
-import io.kestra.core.runners.RunContext;
-import io.kestra.core.runners.RunContextFactory;
-import io.kestra.core.storages.StorageInterface;
-import io.kestra.plugin.email.MailExecution;
-import io.kestra.plugin.email.MailSend;
-import jakarta.inject.Inject;
-import jakarta.mail.Message;
-import jakarta.mail.internet.InternetAddress;
-import jakarta.mail.internet.MimeBodyPart;
-import jakarta.mail.internet.MimeMessage;
-import jakarta.mail.internet.MimeMultipart;
-import org.apache.commons.io.IOUtils;
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.RegisterExtension;
-import org.simplejavamail.MailException;
-import org.simplejavamail.api.mailer.config.TransportStrategy;
-
 import java.io.File;
 import java.io.FileInputStream;
 import java.net.URI;
@@ -35,6 +9,33 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+
+import org.apache.commons.io.IOUtils;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.RegisterExtension;
+import org.simplejavamail.MailException;
+import org.simplejavamail.api.mailer.config.TransportStrategy;
+
+import com.google.common.collect.ImmutableMap;
+import com.google.common.io.Files;
+import com.icegreen.greenmail.junit5.GreenMailExtension;
+import com.icegreen.greenmail.util.ServerSetupTest;
+
+import io.kestra.core.junit.annotations.KestraTest;
+import io.kestra.core.models.property.Property;
+import io.kestra.core.runners.RunContext;
+import io.kestra.core.runners.RunContextFactory;
+import io.kestra.core.storages.StorageInterface;
+
+import jakarta.inject.Inject;
+import jakarta.mail.Message;
+import jakarta.mail.internet.InternetAddress;
+import jakarta.mail.internet.MimeBodyPart;
+import jakarta.mail.internet.MimeMessage;
+import jakarta.mail.internet.MimeMultipart;
 
 import static io.kestra.core.tenant.TenantService.MAIN_TENANT;
 import static org.hamcrest.CoreMatchers.containsString;
@@ -59,16 +60,24 @@ public class MailSendTest {
     public static void setup() throws Exception {
 
         template = Files.asCharSource(
-            new File(Objects.requireNonNull(MailExecution.class.getClassLoader()
-                    .getResource("mail-template.hbs.peb"))
-                .toURI()),
+            new File(
+                Objects.requireNonNull(
+                    MailExecution.class.getClassLoader()
+                        .getResource("mail-template.hbs.peb")
+                )
+                    .toURI()
+            ),
             StandardCharsets.UTF_8
         ).read();
 
         textTemplate = Files.asCharSource(
-            new File(Objects.requireNonNull(MailExecution.class.getClassLoader()
-                    .getResource("text-template.hbs.peb"))
-                .toURI()),
+            new File(
+                Objects.requireNonNull(
+                    MailExecution.class.getClassLoader()
+                        .getResource("text-template.hbs.peb")
+                )
+                    .toURI()
+            ),
             StandardCharsets.UTF_8
         ).read();
     }
@@ -77,26 +86,27 @@ public class MailSendTest {
     private RunContextFactory runContextFactory;
 
     private RunContext getRunContext() {
-        return runContextFactory.of(Map.of(
-            "firstFailed", false,
-            "execution", ImmutableMap.of(
-                "id", "#aBcDeFgH",
-                "flowId", "mail",
-                "namespace", "org.test",
-                "state", ImmutableMap.of(
-                    "current", "SUCCESS"
-                )
-            ),
-            "duration", Duration.ofMillis(123456),
-            "flow", ImmutableMap.of(
-                "id", "mail"
-            ),
-            "link", "http://todo.com",
-            "customFields", ImmutableMap.of(
-                "Env", "dev"
-            ),
-            "customMessage", "myCustomMessage",
-            "attachments", """
+        return runContextFactory.of(
+            Map.of(
+                "firstFailed", false,
+                "execution", ImmutableMap.of(
+                    "id", "#aBcDeFgH",
+                    "flowId", "mail",
+                    "namespace", "org.test",
+                    "state", ImmutableMap.of(
+                        "current", "SUCCESS"
+                    )
+                ),
+                "duration", Duration.ofMillis(123456),
+                "flow", ImmutableMap.of(
+                    "id", "mail"
+                ),
+                "link", "http://todo.com",
+                "customFields", ImmutableMap.of(
+                    "Env", "dev"
+                ),
+                "customMessage", "myCustomMessage",
+                "attachments", """
                     [
                         {
                             "name": "application.yml",
@@ -104,7 +114,8 @@ public class MailSendTest {
                             "contentType": "text/yaml"
                         }
                     ]"""
-        ));
+            )
+        );
     }
 
     @Test
@@ -138,12 +149,14 @@ public class MailSendTest {
             .plainTextContent(Property.ofValue(textTemplate))
             .transportStrategy(Property.ofValue(TransportStrategy.SMTP))
             .attachments(Property.ofExpression("{{ attachments | toJson }}"))
-            .embeddedImages(Property.ofValue(
-                    List.of(MailSend.Attachment.builder()
-                        .name(Property.ofValue(embeddedImageFilename))
-                        .uri(Property.ofValue(putEmbeddedImage.toString()))
-                        .contentType(Property.ofValue("image/png"))
-                        .build()
+            .embeddedImages(
+                Property.ofValue(
+                    List.of(
+                        MailSend.Attachment.builder()
+                            .name(Property.ofValue(embeddedImageFilename))
+                            .uri(Property.ofValue(putEmbeddedImage.toString()))
+                            .contentType(Property.ofValue("image/png"))
+                            .build()
                     )
                 )
             )
@@ -188,7 +201,8 @@ public class MailSendTest {
     void testThrowsMailException() {
         RunContext runContext = getRunContext();
 
-        Assertions.assertThrows(MailException.class, () -> {
+        Assertions.assertThrows(MailException.class, () ->
+        {
             MailSend mailSend = MailSend.builder()
                 .host(Property.ofValue("fake-host-unknown.com"))
                 .port(Property.ofValue(465))
@@ -260,8 +274,10 @@ public class MailSendTest {
 
         assertThat(filePart.getContentType(), containsString("text/csv"));
         assertThat(filePart.getFileName(), is("data.csv"));
-        assertThat(file.replace("\r", ""),
-            is(IOUtils.toString(storageInterface.get(MAIN_TENANT, null, putDataset), StandardCharsets.UTF_8)));
+        assertThat(
+            file.replace("\r", ""),
+            is(IOUtils.toString(storageInterface.get(MAIN_TENANT, null, putDataset), StandardCharsets.UTF_8))
+        );
     }
 
     @Test

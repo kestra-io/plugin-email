@@ -1,8 +1,16 @@
 package io.kestra.plugin.email;
 
+import java.util.Properties;
+import java.util.concurrent.CountDownLatch;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.extension.RegisterExtension;
+
 import com.icegreen.greenmail.configuration.GreenMailConfiguration;
 import com.icegreen.greenmail.junit5.GreenMailExtension;
 import com.icegreen.greenmail.util.ServerSetup;
+
+import io.kestra.core.junit.annotations.KestraTest;
 import io.kestra.core.models.executions.Execution;
 import io.kestra.core.queues.QueueFactoryInterface;
 import io.kestra.core.queues.QueueInterface;
@@ -13,19 +21,14 @@ import io.kestra.core.utils.TestsUtils;
 import io.kestra.jdbc.runner.JdbcScheduler;
 import io.kestra.scheduler.AbstractScheduler;
 import io.kestra.worker.DefaultWorker;
+
 import io.micronaut.context.ApplicationContext;
-import io.kestra.core.junit.annotations.KestraTest;
 import jakarta.inject.Inject;
 import jakarta.inject.Named;
 import jakarta.mail.*;
 import jakarta.mail.internet.InternetAddress;
 import jakarta.mail.internet.MimeMessage;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.extension.RegisterExtension;
 import reactor.core.publisher.Flux;
-
-import java.util.Properties;
-import java.util.concurrent.CountDownLatch;
 
 @KestraTest
 public abstract class AbstractTriggerTest extends AbstractEmailTest {
@@ -34,8 +37,9 @@ public abstract class AbstractTriggerTest extends AbstractEmailTest {
     static GreenMailExtension greenMail = new GreenMailExtension(
         new ServerSetup[] {
             new ServerSetup(3144, "127.0.0.1", ServerSetup.PROTOCOL_IMAP),
-            new ServerSetup(3145,"127.0.0.1",ServerSetup.PROTOCOL_POP3)
-        }).withConfiguration(GreenMailConfiguration.aConfig().withUser("test@localhost", "password"))
+            new ServerSetup(3145, "127.0.0.1", ServerSetup.PROTOCOL_POP3)
+        }
+    ).withConfiguration(GreenMailConfiguration.aConfig().withUser("test@localhost", "password"))
         .withPerMethodLifecycle(false);
 
     @Inject
@@ -62,10 +66,11 @@ public abstract class AbstractTriggerTest extends AbstractEmailTest {
         final Flux<Execution> receive;
 
         TestContext(ApplicationContext applicationContext, FlowListeners flowListeners, QueueInterface<Execution> queue,
-                    String flowId, CountDownLatch latch) {
+            String flowId, CountDownLatch latch) {
             this.worker = applicationContext.createBean(DefaultWorker.class, IdUtils.create(), 8, null);
             this.scheduler = new JdbcScheduler(applicationContext, flowListeners);
-            this.receive = TestsUtils.receive(queue, execution -> {
+            this.receive = TestsUtils.receive(queue, execution ->
+            {
                 if (execution.getLeft().getFlowId().equals(flowId)) {
                     latch.countDown();
                 }
@@ -82,7 +87,8 @@ public abstract class AbstractTriggerTest extends AbstractEmailTest {
                 worker.shutdown();
                 scheduler.close();
                 receive.blockLast();
-            } catch (Exception ignored) {}
+            } catch (Exception ignored) {
+            }
         }
     }
 
