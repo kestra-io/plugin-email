@@ -16,6 +16,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.ToString;
 import lombok.experimental.SuperBuilder;
+import io.kestra.core.models.annotations.PluginProperty;
 
 @SuperBuilder
 @ToString
@@ -28,6 +29,7 @@ public abstract class MailTemplate extends MailSend {
         description = "Classpath resource path for the HTML email template rendered before sending",
         hidden = true
     )
+    @PluginProperty(group = "advanced")
     protected Property<String> templateUri;
 
     @Schema(
@@ -35,12 +37,14 @@ public abstract class MailTemplate extends MailSend {
         description = "Classpath resource path for the text-only template rendered before sending",
         hidden = true
     )
+    @PluginProperty(group = "advanced")
     protected Property<String> textTemplateUri;
 
     @Schema(
         title = "Template variables",
         description = "Key-value map injected into the templates during rendering"
     )
+    @PluginProperty(group = "advanced")
     protected Property<Map<String, Object>> templateRenderMap;
 
     @Override

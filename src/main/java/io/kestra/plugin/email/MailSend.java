@@ -33,6 +33,7 @@ import lombok.*;
 import lombok.experimental.SuperBuilder;
 
 import static io.kestra.core.utils.Rethrow.throwFunction;
+import io.kestra.core.models.annotations.PluginProperty;
 
 @SuperBuilder
 @ToString
@@ -189,24 +190,28 @@ public class MailSend extends Task implements RunnableTask<VoidOutput> {
         title = "SMTP server host",
         description = "Hostname or IP of the SMTP relay used to send emails"
     )
+    @PluginProperty(group = "connection")
     protected Property<String> host;
 
     @Schema(
         title = "SMTP server port",
         description = "Override the SMTP port. Defaults come from the transport strategy (SMTPS often 465, TLS 587)"
     )
+    @PluginProperty(group = "connection")
     private Property<Integer> port;
 
     @Schema(
         title = "SMTP username",
         description = "Username for authenticating to the SMTP server if required"
     )
+    @PluginProperty(group = "connection")
     protected Property<String> username;
 
     @Schema(
         title = "SMTP password",
         description = "Password or secret used for SMTP authentication"
     )
+    @PluginProperty(group = "connection")
     protected Property<String> password;
 
     @Schema(
@@ -214,6 +219,7 @@ public class MailSend extends Task implements RunnableTask<VoidOutput> {
         description = "Protocol used to send the email. Defaults to SMTPS; can be SMTP_TLS, SMTP, or SMTP_OAUTH2"
     )
     @Builder.Default
+    @PluginProperty(group = "connection")
     private final Property<TransportStrategy> transportStrategy = Property.ofValue(TransportStrategy.SMTPS);
 
     @Schema(
@@ -221,6 +227,7 @@ public class MailSend extends Task implements RunnableTask<VoidOutput> {
         description = "Maximum socket timeout while sending emails. Defaults to 10000 ms (10 seconds)"
     )
     @Builder.Default
+    @PluginProperty(group = "execution")
     private final Property<Integer> sessionTimeout = Property.ofValue(10000);
 
     @Schema(
@@ -228,12 +235,14 @@ public class MailSend extends Task implements RunnableTask<VoidOutput> {
         description = "Performs TLS server identity checks. Defaults to true; disable only for self-signed or internal servers"
     )
     @Builder.Default
+    @PluginProperty(group = "connection")
     private final Property<Boolean> verifyServerIdentity = Property.ofValue(true);
 
     @Schema(
         title = "Trusted SSL/TLS hosts",
         description = "Restrict TLS trust to the specified hosts when working with internal or self-signed servers"
     )
+    @PluginProperty(group = "connection")
     private Property<List<String>> trustedHosts;
 
     /* Mail info */
@@ -241,36 +250,42 @@ public class MailSend extends Task implements RunnableTask<VoidOutput> {
         title = "Sender address",
         description = "RFC2822 From address presented to recipients"
     )
+    @PluginProperty(group = "source")
     protected Property<String> from;
 
     @Schema(
         title = "Recipients (To)",
         description = "Semicolon-delimited list of RFC2822 addresses for primary recipients"
     )
+    @PluginProperty(group = "destination")
     protected Property<String> to;
 
     @Schema(
         title = "CC recipients",
         description = "Optional semicolon-delimited RFC2822 addresses for carbon copy recipients"
     )
+    @PluginProperty(group = "advanced")
     protected Property<String> cc;
 
     @Schema(
         title = "Email subject",
         description = "Optional subject line; template expressions are allowed"
     )
+    @PluginProperty(group = "main")
     protected Property<String> subject;
 
     @Schema(
         title = "HTML body",
         description = "HTML version of the message body. Can be paired with plainTextContent; most clients prefer HTML over plain text"
     )
+    @PluginProperty(group = "advanced")
     protected Property<String> htmlTextContent;
 
     @Schema(
         title = "Plain text body",
         description = "Plain-text alternative used when HTML is not supported"
     )
+    @PluginProperty(group = "advanced")
     protected Property<String> plainTextContent;
 
     @Schema(
@@ -278,6 +293,7 @@ public class MailSend extends Task implements RunnableTask<VoidOutput> {
         description = "Attachments to include, provided as a list or JSON string. Shown as separate files; some clients preview common types inline",
         anyOf = { List.class, String.class } // Can be a List<Attachment> or a String like "{{ inputs.attachments | toJson }})"
     )
+    @PluginProperty(group = "advanced")
     private Property<Object> attachments;
 
     @Schema(
@@ -285,6 +301,7 @@ public class MailSend extends Task implements RunnableTask<VoidOutput> {
         description = "Images referenced from the HTML body via content IDs; accepts a list or JSON and expects common image MIME types",
         anyOf = { List.class, String.class } // Can be a List<Attachment> or a String like "{{ inputs.attachments | toJson }})"
     )
+    @PluginProperty(group = "advanced")
     private Property<Object> embeddedImages;
 
     @Schema(

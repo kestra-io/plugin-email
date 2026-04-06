@@ -12,6 +12,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
+import io.kestra.core.models.annotations.PluginProperty;
 
 @SuperBuilder
 @Getter
@@ -28,33 +29,41 @@ public abstract class AbstractMailTrigger extends AbstractTrigger {
 
     @Schema(title = "Mail server host", description = "Hostname or IP address for the mailbox connection")
     @NotNull
+    @PluginProperty(group = "main")
     protected Property<String> host;
 
     @Schema(title = "Mail server port", description = "Override the connection port. Defaults: IMAP 993/143, POP3 995/110 depending on SSL")
+    @PluginProperty(group = "connection")
     protected Property<Integer> port;
 
     @Schema(title = "Username", description = "Username used to authenticate against the mailbox")
     @NotNull
+    @PluginProperty(group = "main")
     protected Property<String> username;
 
     @Schema(title = "Password", description = "Password or secret for mailbox authentication")
     @NotNull
+    @PluginProperty(group = "main")
     protected Property<String> password;
 
     @Schema(title = "Mail folder", description = "Folder to monitor (IMAP only). Defaults to INBOX")
     @Builder.Default
+    @PluginProperty(group = "advanced")
     protected final Property<String> folder = Property.ofValue("INBOX");
 
     @Schema(title = "Use SSL/TLS", description = "Enable TLS for the mailbox connection. Defaults to true")
     @Builder.Default
+    @PluginProperty(group = "connection")
     protected final Property<Boolean> ssl = Property.ofValue(true);
 
     @Schema(title = "Trust all certificates", description = "Skip TLS certificate validation (testing only). Defaults to false")
     @Builder.Default
+    @PluginProperty(group = "advanced")
     protected final Property<Boolean> trustAllCertificates = Property.ofValue(false);
 
     @Schema(title = "Check interval", description = "Frequency for polling-based checks as an ISO-8601 duration. Default PT60S")
     @Builder.Default
+    @PluginProperty(group = "execution")
     protected final Property<Duration> interval = Property.ofValue(Duration.ofSeconds(60));
 
     protected MailService.MailConfiguration renderMailConfiguration(RunContext runContext) throws Exception {
