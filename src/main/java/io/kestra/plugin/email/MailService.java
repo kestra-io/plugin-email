@@ -17,6 +17,7 @@ import jakarta.mail.internet.MimeMultipart;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.experimental.UtilityClass;
+import io.kestra.core.models.annotations.PluginProperty;
 
 @UtilityClass
 public class MailService {
@@ -45,30 +46,39 @@ public class MailService {
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class EmailData implements io.kestra.core.models.tasks.Output {
         @Schema(title = "Email subject", description = "Subject line of the received email")
+        @PluginProperty(group = "advanced")
         private final String subject;
 
         @Schema(title = "Sender email address", description = "Address from the From header")
+        @PluginProperty(group = "source")
         private final String from;
 
         @Schema(title = "Recipient email addresses", description = "Addresses from the To header")
+        @PluginProperty(group = "destination")
         private final List<String> to;
 
         @Schema(title = "CC email addresses", description = "Addresses from the CC header")
+        @PluginProperty(group = "advanced")
         private final List<String> cc;
 
         @Schema(title = "BCC email addresses", description = "Addresses from the BCC header when available")
+        @PluginProperty(group = "advanced")
         private final List<String> bcc;
 
         @Schema(title = "Email date", description = "Message date as parsed from Received or Sent headers")
+        @PluginProperty(group = "advanced")
         private final ZonedDateTime date;
 
         @Schema(title = "Email body content", description = "Text content extracted from the message parts")
+        @PluginProperty(group = "advanced")
         private final String body;
 
         @Schema(title = "Message ID", description = "Unique message identifier from the email headers")
+        @PluginProperty(group = "advanced")
         private final String messageId;
 
         @Schema(title = "Email attachments", description = "Metadata describing each attachment")
+        @PluginProperty(group = "advanced")
         private final List<AttachmentInfo> attachments;
     }
 
@@ -77,12 +87,15 @@ public class MailService {
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class AttachmentInfo {
         @Schema(title = "Attachment filename", description = "Filename as provided by the email")
+        @PluginProperty(group = "advanced")
         private final String filename;
 
         @Schema(title = "Content type", description = "Attachment MIME type reported by the sender")
+        @PluginProperty(group = "advanced")
         private final String contentType;
 
         @Schema(title = "File size in bytes", description = "Attachment size when provided by the server")
+        @PluginProperty(group = "advanced")
         private final Integer size;
     }
 

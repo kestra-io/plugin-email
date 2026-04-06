@@ -13,6 +13,7 @@ import io.kestra.core.runners.RunContext;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
+import io.kestra.core.models.annotations.PluginProperty;
 
 @SuperBuilder
 @ToString
@@ -66,18 +67,21 @@ public class MailExecution extends MailTemplate implements ExecutionInterface {
         description = "Execution identifier injected into the templates. Defaults to the current execution when left blank"
     )
     @Builder.Default
+    @PluginProperty(group = "advanced")
     private final Property<String> executionId = Property.ofExpression("{{ execution.id }}");
 
     @Schema(
         title = "Custom fields for the template",
         description = "Additional key-value map merged into the email templates alongside the execution data"
     )
+    @PluginProperty(group = "destination")
     private Property<Map<String, Object>> customFields;
 
     @Schema(
         title = "Custom message prefix",
         description = "Optional freeform text appended to the rendered email body"
     )
+    @PluginProperty(group = "destination")
     private Property<String> customMessage;
 
     @Schema(
