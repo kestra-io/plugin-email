@@ -43,7 +43,7 @@ import lombok.experimental.SuperBuilder;
 
                 tasks:
                   - id: process_email
-                    type: io.kestra.core.tasks.log.Log
+                    type: io.kestra.plugin.core.log.Log
                     message: |
                       New email received:
                       Subject: {{ trigger.latestEmail.subject }}
