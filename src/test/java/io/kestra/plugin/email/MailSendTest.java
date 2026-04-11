@@ -312,4 +312,24 @@ public class MailSendTest {
         String body = IOUtils.toString(mimeMessage.getInputStream(), StandardCharsets.UTF_8);
         assertThat(body, containsString("Test email with SSL trust configuration"));
     }
+
+    @Test
+    @DisplayName("Send email using accessToken with SMTP_OAUTH2")
+    void sendEmailWithAccessToken() throws Exception {
+        RunContext runContext = getRunContext();
+
+        MailSend mailSend = MailSend.builder()
+            .host(Property.ofValue("localhost"))
+            .port(Property.ofValue(greenMail.getSmtp().getPort()))
+            .username(Property.ofValue("user@test.com"))
+            .accessToken(Property.ofValue("dummy-token"))
+            .from(Property.ofValue(FROM))
+            .to(Property.ofValue(TO))
+            .subject(Property.ofValue(SUBJECT))
+            .htmlTextContent(Property.ofValue("OAuth test"))
+            .transportStrategy(Property.ofValue(TransportStrategy.SMTP_OAUTH2))
+            .build();
+
+        Assertions.assertThrows(MailException.class, () -> mailSend.run(runContext));
+    }
 }
