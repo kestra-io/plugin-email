@@ -67,7 +67,6 @@ class RealTimeTriggerTest extends AbstractTriggerTest {
         repositoryLoader.load(Objects.requireNonNull(RealTimeTriggerTest.class.getClassLoader().getResource(flowPath)));
 
         if (!startupWait.isZero()) {
-            // IMAP only sees emails after the listener is attached, so give the realtime listener time to subscribe.
             Thread.sleep(startupWait.toMillis());
         }
 
