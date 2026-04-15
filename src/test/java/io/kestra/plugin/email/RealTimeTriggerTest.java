@@ -15,11 +15,20 @@ import io.kestra.core.models.executions.Execution;
 import io.kestra.core.models.flows.Flow;
 import io.kestra.core.models.flows.FlowWithSource;
 import io.kestra.core.models.property.Property;
+import io.kestra.core.queues.QueueFactoryInterface;
+import io.kestra.core.queues.QueueInterface;
 import io.kestra.core.runners.FlowListeners;
 import io.kestra.core.utils.Await;
+import io.kestra.core.utils.IdUtils;
 import io.kestra.core.utils.TestsUtils;
+import io.kestra.jdbc.runner.JdbcScheduler;
 import io.kestra.plugin.core.debug.Return;
+import io.kestra.scheduler.AbstractScheduler;
+import io.kestra.worker.DefaultWorker;
 
+import io.micronaut.context.ApplicationContext;
+import jakarta.inject.Inject;
+import jakarta.inject.Named;
 import reactor.core.publisher.Flux;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -29,11 +38,21 @@ import static org.mockito.Mockito.spy;
 
 class RealTimeTriggerTest extends AbstractTriggerTest {
 
+    @Inject
+    private ApplicationContext applicationContext;
+
+    @Inject
+    private FlowListeners flowListenersService;
+
+    @Inject
+    @Named(QueueFactoryInterface.EXECUTION_NAMED)
+    private QueueInterface<Execution> executionQueue;
+
     @Test
     void RealTimeTriggerWithPop3() throws Exception {
-        FlowListeners flowListenersServiceSpy = spy(this.flowListenersService);
+        var flowListenersServiceSpy = spy(this.flowListenersService);
 
-        RealTimeTrigger mailTrigger = RealTimeTrigger.builder()
+        var mailTrigger = RealTimeTrigger.builder()
             .id("pop3-mail-trigger")
             .type(RealTimeTrigger.class.getName())
             .protocol(Property.ofValue(MailService.Protocol.POP3))
@@ -46,7 +65,7 @@ class RealTimeTriggerTest extends AbstractTriggerTest {
             .interval(Property.ofValue(Duration.ofSeconds(1)))
             .build();
 
-        Flow testFlow = Flow.builder()
+        var testFlow = Flow.builder()
             .id("real-time-trigger-pop3")
             .namespace("io.kestra.tests")
             .revision(1)
@@ -66,11 +85,11 @@ class RealTimeTriggerTest extends AbstractTriggerTest {
             .triggers(Collections.singletonList(mailTrigger))
             .build();
 
-        FlowWithSource flow = FlowWithSource.of(testFlow, null);
+        var flow = FlowWithSource.of(testFlow, null);
         doReturn(List.of(flow)).when(flowListenersServiceSpy).flows();
 
-        CountDownLatch queueCount = new CountDownLatch(1);
-        AtomicReference<Execution> lastExecution = new AtomicReference<>();
+        var queueCount = new CountDownLatch(1);
+        var lastExecution = new AtomicReference<Execution>();
 
         Flux<Execution> receive = TestsUtils.receive(executionQueue, execution ->
         {
@@ -80,13 +99,12 @@ class RealTimeTriggerTest extends AbstractTriggerTest {
             }
         });
 
-        TestContext testContext = new TestContext(
-            applicationContext, flowListenersServiceSpy, executionQueue,
-            "real-time-trigger-pop3", queueCount
-        );
+        var worker = applicationContext.createBean(DefaultWorker.class, IdUtils.create(), 8, null);
+        AbstractScheduler scheduler = new JdbcScheduler(applicationContext, flowListenersServiceSpy);
 
         try {
-            testContext.start();
+            worker.run();
+            scheduler.run();
             sendTestEmail("Test Email", "sender@example.com", "Test email body");
 
             Thread.sleep(Duration.ofSeconds(2).toMillis());
@@ -104,23 +122,27 @@ class RealTimeTriggerTest extends AbstractTriggerTest {
                 throw new AssertionError("Execution was not captured within 2 seconds", e);
             }
 
-            Execution execution = lastExecution.get();
+            var execution = lastExecution.get();
 
             Map<String, Object> triggerVars = execution.getTrigger().getVariables();
             assertThat("Latest email subject should be present", triggerVars.get("subject"), notNullValue());
             assertThat("Latest email sender should be present", triggerVars.get("from"), notNullValue());
             assertThat("Latest email body should be present", triggerVars.get("body"), notNullValue());
         } finally {
-            testContext.shutdown();
-            receive.blockLast();
+            try {
+                worker.shutdown();
+                scheduler.close();
+                receive.blockLast();
+            } catch (Exception ignored) {
+            }
         }
     }
 
     @Test
     void RealTimeTriggerWithImap() throws Exception {
-        FlowListeners flowListenersServiceSpy = spy(this.flowListenersService);
+        var flowListenersServiceSpy = spy(this.flowListenersService);
 
-        RealTimeTrigger mailTrigger = RealTimeTrigger.builder()
+        var mailTrigger = RealTimeTrigger.builder()
             .id("imap-real-time-trigger")
             .type(RealTimeTrigger.class.getName())
             .protocol(Property.ofValue(MailService.Protocol.IMAP))
@@ -133,7 +155,7 @@ class RealTimeTriggerTest extends AbstractTriggerTest {
             .interval(Property.ofValue(Duration.ofSeconds(1)))
             .build();
 
-        Flow testFlow = Flow.builder()
+        var testFlow = Flow.builder()
             .id("real-time-trigger-imap")
             .namespace("io.kestra.tests")
             .revision(1)
@@ -153,11 +175,11 @@ class RealTimeTriggerTest extends AbstractTriggerTest {
             .triggers(Collections.singletonList(mailTrigger))
             .build();
 
-        FlowWithSource flow = FlowWithSource.of(testFlow, null);
+        var flow = FlowWithSource.of(testFlow, null);
         doReturn(List.of(flow)).when(flowListenersServiceSpy).flows();
 
-        CountDownLatch queueCount = new CountDownLatch(1);
-        AtomicReference<Execution> lastExecution = new AtomicReference<>();
+        var queueCount = new CountDownLatch(1);
+        var lastExecution = new AtomicReference<Execution>();
 
         Flux<Execution> receive = TestsUtils.receive(executionQueue, execution ->
         {
@@ -167,13 +189,12 @@ class RealTimeTriggerTest extends AbstractTriggerTest {
             }
         });
 
-        TestContext testContext = new TestContext(
-            applicationContext, flowListenersServiceSpy, executionQueue,
-            "real-time-trigger-imap", queueCount
-        );
+        var worker = applicationContext.createBean(DefaultWorker.class, IdUtils.create(), 8, null);
+        AbstractScheduler scheduler = new JdbcScheduler(applicationContext, flowListenersServiceSpy);
 
         try {
-            testContext.start();
+            worker.run();
+            scheduler.run();
 
             Thread.sleep(Duration.ofSeconds(2).toMillis());
 
@@ -191,15 +212,19 @@ class RealTimeTriggerTest extends AbstractTriggerTest {
                 throw new AssertionError("Execution was not captured within 2 seconds", e);
             }
 
-            Execution execution = lastExecution.get();
+            var execution = lastExecution.get();
 
             Map<String, Object> triggerVars = execution.getTrigger().getVariables();
             assertThat("Latest email subject should be present", triggerVars.get("subject"), notNullValue());
             assertThat("Latest email sender should be present", triggerVars.get("from"), notNullValue());
             assertThat("Latest email body should be present", triggerVars.get("body"), notNullValue());
         } finally {
-            testContext.shutdown();
-            receive.blockLast();
+            try {
+                worker.shutdown();
+                scheduler.close();
+                receive.blockLast();
+            } catch (Exception ignored) {
+            }
         }
     }
 }
