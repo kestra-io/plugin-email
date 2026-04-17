@@ -1,0 +1,17 @@
+id: mail-received-trigger-pop3
+namespace: io.kestra.tests
+tasks:
+  - id: process-pop3-emails
+    type: io.kestra.plugin.core.debug.Return
+    format: "POP3 emails received: {{trigger.total}} emails, latest: {{trigger.latestEmail.subject}}"
+triggers:
+  - id: pop3-mail-trigger
+    type: io.kestra.plugin.email.MailReceivedTrigger
+    protocol: POP3
+    host: "127.0.0.1"
+    port: 3145
+    username: "test@localhost"
+    password: "password"
+    ssl: false
+    trustAllCertificates: true
+    interval: PT1S
