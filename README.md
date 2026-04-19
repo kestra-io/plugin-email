@@ -35,39 +35,18 @@
 </p>
 <p align="center" style="color:grey;"><i>Get started with Kestra in 3 minutes.</i></p>
 
-
 # Kestra Email Plugin
 
-> Send emails via SMTP from your Kestra workflows. Automate email notifications, reports, and alerts as part of your orchestrated pipelines.
+## Why
 
+- What user problem does this solve? Teams need to send email notifications from orchestrated workflows instead of relying on manual console work, ad hoc scripts, or disconnected schedulers.
+- Why would a team adopt this plugin in a workflow? It keeps Email steps in the same Kestra flow as upstream preparation, approvals, retries, notifications, and downstream systems.
+- What operational/business outcome does it enable? It reduces manual handoffs and fragmented tooling while improving reliability, traceability, and delivery speed for processes that depend on Email.
 
-![Kestra orchestrator](https://kestra.io/video.gif)
+## What
 
-## Running the project in local
-### Prerequisites
-- Java 21
-- Docker
-
-### Running tests
-```
-./gradlew check --parallel
-```
-
-### Development
-
-`VSCode`:
-
-Follow the README.md within the `.devcontainer` folder for a quick and easy way to get up and running with developing plugins if you are using VSCode.
-
-`Other IDEs`:
-
-```
-./gradlew shadowJar && docker build -t kestra-custom . && docker run --rm -p 8080:8080 kestra-custom server local
-```
-> [!NOTE]
-> You need to relaunch this whole command everytime you make a change to your plugin
-
-go to http://localhost:8080, your plugin will be available to use
+- Provides plugin components under `io.kestra.plugin.email`.
+- Includes classes such as `MailExecution`, `RealTimeTrigger`, `MailReceivedTrigger`, `MailTemplate`.
 
 ## Documentation
 * Full documentation can be found under: [kestra.io/docs](https://kestra.io/docs)
