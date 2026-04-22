@@ -204,14 +204,14 @@ public class MailSend extends Task implements RunnableTask<VoidOutput> {
         title = "SMTP username",
         description = "Username for authenticating to the SMTP server if required"
     )
-    @PluginProperty(group = "connection")
+    @PluginProperty(group = "connection", secret = true)
     protected Property<String> username;
 
     @Schema(
         title = "SMTP password",
         description = "Password or secret used for SMTP authentication"
     )
-    @PluginProperty(group = "connection")
+    @PluginProperty(group = "connection", secret = true)
     protected Property<String> password;
 
     @Schema(
@@ -308,6 +308,7 @@ public class MailSend extends Task implements RunnableTask<VoidOutput> {
         title = "OAuth2 access token",
         description = "Used when transportStrategy is SMTP_OAUTH2. Overrides password when provided; otherwise password is treated as the token"
     )
+    @PluginProperty(secret = true)
     protected Property<String> accessToken;
 
     @Override
