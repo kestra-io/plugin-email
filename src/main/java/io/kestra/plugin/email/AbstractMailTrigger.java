@@ -38,12 +38,12 @@ public abstract class AbstractMailTrigger extends AbstractTrigger {
 
     @Schema(title = "Username", description = "Username used to authenticate against the mailbox")
     @NotNull
-    @PluginProperty(group = "main")
+    @PluginProperty(group = "main", secret = true)
     protected Property<String> username;
 
     @Schema(title = "Password", description = "Password or secret for mailbox authentication")
     @NotNull
-    @PluginProperty(group = "main")
+    @PluginProperty(group = "main", secret = true)
     protected Property<String> password;
 
     @Schema(title = "Mail folder", description = "Folder to monitor (IMAP only). Defaults to INBOX")
