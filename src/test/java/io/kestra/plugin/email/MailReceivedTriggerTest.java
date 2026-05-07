@@ -44,9 +44,17 @@ class MailReceivedTriggerTest extends AbstractTriggerTest {
             }
         });
 
-        sendTestEmail("First Email", "sender1@example.com", "First test email body");
+        // MailReceivedTrigger only picks up emails received after its first-poll cutoff,
+        // so re-send periodically until the trigger evaluates and dispatches an execution.
+        Awaitility.await()
+            .atMost(Duration.ofMinutes(3))
+            .pollInterval(Duration.ofSeconds(5))
+            .until(() -> {
+                sendTestEmail("First Email", "sender1@example.com", "First test email body");
+                return queueCount.await(2, TimeUnit.SECONDS);
+            });
 
-        boolean await = queueCount.await(1, TimeUnit.MINUTES);
+        boolean await = lastExecution.get() != null;
         assertThat(flowId + " trigger should execute", await, is(true));
 
         Execution execution = lastExecution.get();

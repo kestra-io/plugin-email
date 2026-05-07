@@ -16,4 +16,4 @@ triggers:
     password: "{{ 'password' }}"
     ssl: false
     trustAllCertificates: true
-    interval: PT1M
+    interval: PT1S

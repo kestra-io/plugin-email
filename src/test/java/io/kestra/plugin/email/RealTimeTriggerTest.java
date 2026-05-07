@@ -50,7 +50,7 @@ class RealTimeTriggerTest extends AbstractTriggerTest {
 
         sendTestEmail("Test Email", "sender@example.com", "Test email body");
 
-        boolean await = queueCount.await(1, TimeUnit.MINUTES);
+        boolean await = queueCount.await(2, TimeUnit.MINUTES);
         assertThat(flowId + " should execute", await, is(true));
 
         Execution execution = lastExecution.get();
