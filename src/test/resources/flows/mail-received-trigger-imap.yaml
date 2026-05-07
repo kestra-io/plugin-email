@@ -10,8 +10,8 @@ triggers:
     protocol: IMAP
     host: "127.0.0.1"
     port: 3144
-    username: "test@localhost"
-    password: "password"
+    username: "{{ 'test@localhost' }}"
+    password: "{{ 'password' }}"
     ssl: false
     trustAllCertificates: true
     interval: PT1S

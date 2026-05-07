@@ -10,13 +10,18 @@ import com.icegreen.greenmail.junit5.GreenMailExtension;
 import com.icegreen.greenmail.util.ServerSetup;
 
 import io.kestra.core.junit.annotations.KestraTest;
+import io.kestra.core.runners.Scheduler;
 
+import jakarta.inject.Inject;
 import jakarta.mail.*;
 import jakarta.mail.internet.InternetAddress;
 import jakarta.mail.internet.MimeMessage;
 
-@KestraTest
+@KestraTest(startRunner = true, startScheduler = true)
 public abstract class AbstractTriggerTest extends AbstractEmailTest {
+
+    @Inject
+    protected Scheduler scheduler;
 
     @RegisterExtension
     static GreenMailExtension greenMail = new GreenMailExtension(
