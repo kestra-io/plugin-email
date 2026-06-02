@@ -54,7 +54,7 @@ import reactor.core.publisher.FluxSink;
 
                 tasks:
                   - id: process_email
-                    type: io.kestra.core.tasks.log.Log
+                    type: io.kestra.plugin.core.log.Log
                     message: |
                       Real-time email received:
                       Subject: {{ trigger.subject }}
