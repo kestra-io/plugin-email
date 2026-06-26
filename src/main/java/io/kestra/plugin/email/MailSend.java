@@ -315,7 +315,7 @@ public class MailSend extends Task implements RunnableTask<VoidOutput> {
         title = "OAuth2 access token",
         description = "Used when transportStrategy is SMTP_OAUTH2. Overrides password when provided; otherwise password is treated as the token"
     )
-    @PluginProperty(secret = true)
+    @PluginProperty(secret = true, group = "connection")
     protected Property<String> accessToken;
 
     @Override
