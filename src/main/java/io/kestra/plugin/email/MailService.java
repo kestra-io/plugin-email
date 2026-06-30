@@ -1,9 +1,13 @@
 package io.kestra.plugin.email;
 
 import java.io.IOException;
+import java.io.OutputStream;
+import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.ZonedDateTime;
 import java.util.*;
+import java.util.regex.Pattern;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
@@ -113,6 +117,12 @@ public class MailService {
         public final Duration interval;
     }
 
+    // CWE-532 / OWASP A09:2021: lines from the JavaMail protocol transcript that carry
+    // authentication material and must never reach stdout or the application logger.
+    private static final Pattern SENSITIVE_DEBUG_LINE = Pattern.compile(
+        "^(AUTH|AUTHENTICATE)\\b.*|^(\\+OK|\\+|.*[Pp]assword).*|^[A-Za-z0-9+/=]{20,}$"
+    );
+
     public static Properties setupMailProperties(String protocol, String host, Integer port, Boolean ssl,
         Boolean trustAllCertificates, RunContext runContext) {
         Properties props = new Properties();
@@ -129,15 +139,72 @@ public class MailService {
         }
 
         if (trustAllCertificates) {
+            // CWE-295 / OWASP A02:2025: disabling certificate and hostname validation removes
+            // all protection against a man-in-the-middle attack on this connection. This option
+            // must only ever be used for local/testing setups against a known, trusted host.
+            runContext.logger().warn(
+                "trustAllCertificates is enabled for {}:{} — TLS certificate and hostname " +
+                    "validation is disabled. This makes the connection vulnerable to " +
+                    "man-in-the-middle attacks and must never be used in production.",
+                host, port
+            );
             props.put("mail." + protocolName + ".ssl.trust", "*");
             props.put("mail." + protocolName + ".ssl.checkserveridentity", "false");
         }
 
+        // Never set mail.debug=true here: JavaMail writes the raw protocol transcript
+        // (including AUTH PLAIN/LOGIN handshakes with base64-encoded, trivially decodable
+        // credentials) directly to whatever debug stream is configured. Debug output is
+        // instead enabled, when appropriate, via a redacting stream in applyDebugLogging().
+        return props;
+    }
+
+    /**
+     * Enables JavaMail debug output on the given session only when the run context logger is at
+     * DEBUG level, and routes it through a redacting filter so credential material (AUTH/LOGIN
+     * handshakes, base64 tokens) is never written to stdout or the application logger.
+     */
+    public static void applyDebugLogging(Session session, RunContext runContext) {
         if (runContext.logger().isDebugEnabled()) {
-            props.put("mail.debug", "true");
+            session.setDebug(true);
+            session.setDebugOut(new PrintStream(new RedactingOutputStream(runContext), true, StandardCharsets.UTF_8));
+        }
+    }
+
+    /**
+     * OutputStream that buffers JavaMail's debug output line-by-line and forwards each line to
+     * the run context logger, redacting any line that looks like it may carry credentials before
+     * it is ever logged.
+     */
+    private static final class RedactingOutputStream extends OutputStream {
+        private final RunContext runContext;
+        private final StringBuilder buffer = new StringBuilder();
+
+        private RedactingOutputStream(RunContext runContext) {
+            this.runContext = runContext;
         }
 
-        return props;
+        @Override
+        public void write(int b) {
+            if (b == '\n') {
+                flushLine();
+            } else if (b != '\r') {
+                buffer.append((char) b);
+            }
+        }
+
+        private void flushLine() {
+            String line = buffer.toString();
+            buffer.setLength(0);
+            if (line.isBlank()) {
+                return;
+            }
+            if (SENSITIVE_DEBUG_LINE.matcher(line.trim()).matches()) {
+                runContext.logger().debug("[JavaMail] <redacted: possible credential material>");
+            } else {
+                runContext.logger().debug("[JavaMail] {}", line);
+            }
+        }
     }
 
     public static String getProtocolName(String protocol, Boolean ssl) {
@@ -266,6 +333,7 @@ public class MailService {
         Properties props = setupMailProperties(protocol, host, port, ssl, trustAllCertificates, runContext);
         String protocolName = getProtocolName(protocol, ssl);
         Session session = Session.getInstance(props, null);
+        applyDebugLogging(session, runContext);
         Store store = session.getStore(protocolName);
 
         try {
