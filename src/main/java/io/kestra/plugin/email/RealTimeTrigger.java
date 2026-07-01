@@ -168,6 +168,7 @@ public class RealTimeTrigger extends AbstractMailTrigger
                     config.ssl, config.trustAllCertificates, runContext
                 );
                 Session session = Session.getInstance(props, null);
+                MailService.applyDebugLogging(session, runContext);
                 store = session.getStore(MailService.getProtocolName(config.protocol, config.ssl));
 
                 MailService.connectToStore(
