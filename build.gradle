@@ -54,7 +54,7 @@ dependencies {
     compileOnly group: "io.kestra", name: "script", version: kestraVersion
 
     // libs
-    api 'org.simplejavamail:simple-java-mail:8.12.6'
+    api 'org.simplejavamail:simple-java-mail:9.0.1'
     api 'org.eclipse.angus:jakarta.mail:2.0.5'
 }
 
