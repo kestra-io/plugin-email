@@ -268,6 +268,13 @@ public class MailSend extends Task implements RunnableTask<VoidOutput> {
     protected Property<String> cc;
 
     @Schema(
+        title = "BCC recipients",
+        description = "Optional semicolon-delimited RFC2822 addresses for blind carbon copy recipients"
+    )
+    @PluginProperty(group = "advanced")
+    protected Property<String> bcc;
+
+    @Schema(
         title = "Email subject",
         description = "Optional subject line; template expressions are allowed"
     )
@@ -308,7 +315,7 @@ public class MailSend extends Task implements RunnableTask<VoidOutput> {
         title = "OAuth2 access token",
         description = "Used when transportStrategy is SMTP_OAUTH2. Overrides password when provided; otherwise password is treated as the token"
     )
-    @PluginProperty(secret = true)
+    @PluginProperty(secret = true, group = "connection")
     protected Property<String> accessToken;
 
     @Override
@@ -318,36 +325,7 @@ public class MailSend extends Task implements RunnableTask<VoidOutput> {
         Logger logger = runContext.logger();
 
         logger.debug("Sending an email to {}", to);
-
-        final String htmlContent = runContext.render(this.htmlTextContent).as(String.class).orElse(null);
-        final String textContent = runContext.render(this.plainTextContent).as(String.class)
-            .orElse("Please view this email in a modern email client");
-
-        EmailPopulatingBuilder builder = EmailBuilder.startingBlank()
-            .to(runContext.render(to).as(String.class).orElseThrow())
-            .from(runContext.render(from).as(String.class).orElseThrow())
-            .withSubject(runContext.render(subject).as(String.class).orElse(null))
-            .withHTMLText(htmlContent)
-            .withPlainText(textContent)
-            .withReturnReceiptTo();
-
-        var renderedAttachments = runContext.render(attachments).as(Object.class).orElse("");
-        var attachmentsList = getAttachments(renderedAttachments);
-
-        if (!attachmentsList.isEmpty()) {
-            builder.withAttachments(this.attachmentResources(attachmentsList, runContext));
-        }
-
-        var renderedEmbeddedImages = runContext.render(embeddedImages).as(Object.class).orElse("");
-        var embeddedImagesList = getAttachments(renderedEmbeddedImages);
-
-        if (!embeddedImagesList.isEmpty()) {
-            builder.withEmbeddedImages(this.attachmentResources(embeddedImagesList, runContext));
-        }
-
-        runContext.render(cc).as(String.class).ifPresent(builder::cc);
-
-        Email email = builder.buildEmail();
+        Email email = buildEmail(runContext);
 
         var rTrustedHosts = runContext.render(trustedHosts).asList(String.class);
 
@@ -391,6 +369,39 @@ public class MailSend extends Task implements RunnableTask<VoidOutput> {
         }
 
         return null;
+    }
+
+    Email buildEmail(RunContext runContext) throws Exception {
+        final String htmlContent = runContext.render(this.htmlTextContent).as(String.class).orElse(null);
+        final String textContent = runContext.render(this.plainTextContent).as(String.class)
+            .orElse("Please view this email in a modern email client");
+
+        EmailPopulatingBuilder builder = EmailBuilder.startingBlank()
+            .to(runContext.render(to).as(String.class).orElseThrow())
+            .from(runContext.render(from).as(String.class).orElseThrow())
+            .withSubject(runContext.render(subject).as(String.class).orElse(null))
+            .withHTMLText(htmlContent)
+            .withPlainText(textContent)
+            .withReturnReceiptTo();
+
+        var renderedAttachments = runContext.render(attachments).as(Object.class).orElse("");
+        var attachmentsList = getAttachments(renderedAttachments);
+
+        if (!attachmentsList.isEmpty()) {
+            builder.withAttachments(this.attachmentResources(attachmentsList, runContext));
+        }
+
+        var renderedEmbeddedImages = runContext.render(embeddedImages).as(Object.class).orElse("");
+        var embeddedImagesList = getAttachments(renderedEmbeddedImages);
+
+        if (!embeddedImagesList.isEmpty()) {
+            builder.withEmbeddedImages(this.attachmentResources(embeddedImagesList, runContext));
+        }
+
+        runContext.render(cc).as(String.class).ifPresent(builder::cc);
+        runContext.render(bcc).as(String.class).ifPresent(builder::bcc);
+
+        return builder.buildEmail();
     }
 
     private List<AttachmentResource> attachmentResources(List<Attachment> attachments, RunContext runContext) throws Exception {

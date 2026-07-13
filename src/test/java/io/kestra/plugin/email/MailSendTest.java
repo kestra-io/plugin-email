@@ -13,6 +13,7 @@ import java.util.Objects;
 import org.apache.commons.io.IOUtils;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
@@ -49,6 +50,7 @@ public class MailSendTest {
 
     private static final String FROM = "from@mail.com";
     private static final String TO = "to@mail.com";
+    private static final String BCC = "bcc@mail.com";
     private static final String SUBJECT = "Mail subject";
     private static String template = null;
     private static String textTemplate = null;
@@ -84,6 +86,11 @@ public class MailSendTest {
 
     @Inject
     private RunContextFactory runContextFactory;
+
+    @BeforeEach
+    void cleanupBeforeEach() throws Exception {
+        greenMail.purgeEmailFromAllMailboxes();
+    }
 
     private RunContext getRunContext() {
         return runContextFactory.of(
@@ -144,6 +151,7 @@ public class MailSendTest {
             .port(Property.ofValue(greenMail.getSmtp().getPort()))
             .from(Property.ofValue(FROM))
             .to(Property.ofValue(TO))
+            .bcc(Property.ofValue(BCC))
             .subject(Property.ofValue(SUBJECT))
             .htmlTextContent(Property.ofExpression(template))
             .plainTextContent(Property.ofValue(textTemplate))
@@ -162,11 +170,16 @@ public class MailSendTest {
             )
             .build();
 
+        var builtEmail = mailSend.buildEmail(runContext);
+        org.assertj.core.api.Assertions.assertThat(builtEmail.getBccRecipients())
+            .extracting(org.simplejavamail.api.email.Recipient::getAddress)
+            .containsExactly(BCC);
+
         mailSend.run(runContext);
 
         MimeMessage[] receivedMessages = greenMail.getReceivedMessages();
 
-        assertThat(receivedMessages.length, is(1));
+        org.hamcrest.MatcherAssert.assertThat(receivedMessages.length, is(2));
 
         MimeMessage mimeMessage = receivedMessages[0];
         MimeMultipart content = (MimeMultipart) mimeMessage.getContent();

@@ -76,7 +76,11 @@ import reactor.core.publisher.FluxSink;
         ),
         @Example(
             title = "Monitor POP3 mailbox in real-time",
+            full = true,
             code = """
+                id: realtime_pop3_monitor
+                namespace: company.team
+
                 triggers:
                   - id: realtime_pop3_trigger
                     type: io.kestra.plugin.email.RealTimeTrigger
@@ -164,6 +168,7 @@ public class RealTimeTrigger extends AbstractMailTrigger
                     config.ssl, config.trustAllCertificates, runContext
                 );
                 Session session = Session.getInstance(props, null);
+                MailService.applyDebugLogging(session, runContext);
                 store = session.getStore(MailService.getProtocolName(config.protocol, config.ssl));
 
                 MailService.connectToStore(

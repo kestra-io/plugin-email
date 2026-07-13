@@ -56,7 +56,7 @@ public abstract class AbstractMailTrigger extends AbstractTrigger {
     @PluginProperty(group = "connection")
     protected final Property<Boolean> ssl = Property.ofValue(true);
 
-    @Schema(title = "Trust all certificates", description = "Skip TLS certificate validation (testing only). Defaults to false")
+    @Schema(title = "Trust all certificates", description = "Skip TLS certificate and hostname validation (testing only). WARNING: this disables protection against man-in-the-middle attacks and must never be enabled in production. Defaults to false")
     @Builder.Default
     @PluginProperty(group = "advanced")
     protected final Property<Boolean> trustAllCertificates = Property.ofValue(false);
