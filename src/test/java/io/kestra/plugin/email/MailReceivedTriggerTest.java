@@ -1,63 +1,72 @@
 package io.kestra.plugin.email;
 
-import java.util.Map;
-import java.util.Optional;
-
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-
-import io.kestra.core.junit.annotations.EvaluateTrigger;
+import io.kestra.core.junit.annotations.LoadFlows;
 import io.kestra.core.models.executions.Execution;
 
+import org.awaitility.Awaitility;
+import org.junit.jupiter.api.Test;
+
+import java.time.Duration;
+import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
+
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 class MailReceivedTriggerTest extends AbstractTriggerTest {
 
-    @BeforeEach
-    void sendEmailForTest() throws Exception {
-        sendTestEmail("First Email", "sender1@example.com", "First test email body");
+    @Test
+    @LoadFlows({"flows/mail-received-trigger-pop3.yaml"})
+    void MailReceivedTriggerWithPop3() throws Exception {
+        runTrigger("mail-received-trigger-pop3");
     }
 
     @Test
-    @EvaluateTrigger(flow = "flows/mail-received-trigger-pop3.yaml", triggerId = "pop3-mail-trigger")
-    void MailReceivedTriggerWithPop3(Optional<Execution> optionalExecution) {
-        assertThat(optionalExecution.isPresent(), is(true));
-
-        var execution = optionalExecution.get();
-        Map<String, Object> triggerVars = execution.getTrigger().getVariables();
-
-        assertThat("Should have received emails", (Integer) triggerVars.get("total"), greaterThan(0));
-
-        @SuppressWarnings("unchecked")
-        var latestEmail = (Map<String, Object>) triggerVars.get("latestEmail");
-        assertThat("Latest email should have a subject", latestEmail.get("subject"), notNullValue());
-        assertThat("Latest email should have a from address", latestEmail.get("from"), notNullValue());
-        assertThat(
-            "Latest email subject should be one of the sent emails",
-            latestEmail.get("subject"),
-            is("First Email")
-        );
+    @LoadFlows({"flows/mail-received-trigger-imap.yaml"})
+    void MailReceivedTriggerWithImap() throws Exception {
+        runTrigger("mail-received-trigger-imap");
     }
 
-    @Test
-    @EvaluateTrigger(flow = "flows/mail-received-trigger-imap.yaml", triggerId = "imap-mail-trigger")
-    void MailReceivedTriggerWithImap(Optional<Execution> optionalExecution) {
-        assertThat(optionalExecution.isPresent(), is(true));
+    private void runTrigger(String flowId) throws Exception {
+        Awaitility.await().atMost(Duration.ofSeconds(20)).pollInterval(Duration.ofMillis(100)).until(() -> scheduler.isActive());
 
-        var execution = optionalExecution.get();
+        CountDownLatch queueCount = new CountDownLatch(1);
+        AtomicReference<Execution> lastExecution = new AtomicReference<>();
+
+        executionQueue.addListener(execution -> {
+            if (execution.getFlowId().equals(flowId)) {
+                lastExecution.set(execution);
+                queueCount.countDown();
+            }
+        });
+
+        // MailReceivedTrigger only picks up emails received after its first-poll cutoff,
+        // so re-send periodically until the trigger evaluates and dispatches an execution.
+        Awaitility.await()
+            .atMost(Duration.ofMinutes(3))
+            .pollInterval(Duration.ofSeconds(5))
+            .until(() -> {
+                sendTestEmail("First Email", "sender1@example.com", "First test email body");
+                return queueCount.await(2, TimeUnit.SECONDS);
+            });
+
+        boolean await = lastExecution.get() != null;
+        assertThat(flowId + " trigger should execute", await, is(true));
+
+        Execution execution = lastExecution.get();
+        assertThat(execution, notNullValue());
+
         Map<String, Object> triggerVars = execution.getTrigger().getVariables();
-
         assertThat("Should have received emails", (Integer) triggerVars.get("total"), greaterThan(0));
 
         @SuppressWarnings("unchecked")
-        var latestEmail = (Map<String, Object>) triggerVars.get("latestEmail");
+        Map<String, Object> latestEmail = (Map<String, Object>) triggerVars.get("latestEmail");
         assertThat("Latest email should have a subject", latestEmail.get("subject"), notNullValue());
         assertThat("Latest email should have a from address", latestEmail.get("from"), notNullValue());
-        assertThat(
-            "Latest email subject should be one of the sent emails",
-            latestEmail.get("subject"),
-            is("First Email")
-        );
+        assertThat("Latest email subject should match", latestEmail.get("subject"), is("First Email"));
     }
 }

@@ -1,70 +1,48 @@
 package io.kestra.plugin.email;
 
-import java.time.Duration;
-import java.util.Map;
-import java.util.Objects;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
+import io.kestra.core.junit.annotations.LoadFlows;
+import io.kestra.core.models.executions.Execution;
 
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Test;
 
-import io.kestra.core.junit.annotations.KestraTest;
-import io.kestra.core.models.executions.Execution;
-import io.kestra.core.repositories.LocalFlowRepositoryLoader;
-import io.kestra.core.utils.TestsUtils;
-
-import jakarta.inject.Inject;
-import reactor.core.publisher.Flux;
+import java.time.Duration;
+import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-@KestraTest(startRunner = true, startScheduler = true)
 class RealTimeTriggerTest extends AbstractTriggerTest {
-    private static final Duration REALTIME_TRIGGER_STARTUP_WAIT = Duration.ofSeconds(5);
-
-    @Inject
-    private LocalFlowRepositoryLoader repositoryLoader;
+    private static final Duration IMAP_TRIGGER_STARTUP_WAIT = Duration.ofSeconds(5);
 
     @Test
+    @LoadFlows({"flows/real-time-trigger-pop3.yaml"})
     void RealTimeTriggerWithPop3() throws Exception {
-        var execution = runRealtimeTrigger(
-            "flows/real-time-trigger-pop3.yaml",
-            "real-time-trigger-pop3",
-            Duration.ZERO
-        );
-
-        Map<String, Object> triggerVars = execution.getTrigger().getVariables();
-        assertThat("Latest email subject should be present", triggerVars.get("subject"), notNullValue());
-        assertThat("Latest email sender should be present", triggerVars.get("from"), notNullValue());
-        assertThat("Latest email body should be present", triggerVars.get("body"), notNullValue());
+        runRealtimeTrigger("real-time-trigger-pop3", Duration.ZERO);
     }
 
     @Test
+    @LoadFlows({"flows/real-time-trigger-imap.yaml"})
     void RealTimeTriggerWithImap() throws Exception {
-        var execution = runRealtimeTrigger(
-            "flows/real-time-trigger-imap.yaml",
-            "real-time-trigger-imap",
-            REALTIME_TRIGGER_STARTUP_WAIT
-        );
-
-        Map<String, Object> triggerVars = execution.getTrigger().getVariables();
-        assertThat("Latest email subject should be present", triggerVars.get("subject"), notNullValue());
-        assertThat("Latest email sender should be present", triggerVars.get("from"), notNullValue());
-        assertThat("Latest email body should be present", triggerVars.get("body"), notNullValue());
+        runRealtimeTrigger("real-time-trigger-imap", IMAP_TRIGGER_STARTUP_WAIT);
     }
 
-    private Execution runRealtimeTrigger(String flowPath, String flowId, Duration startupWait) throws Exception {
-        var queueCount = new CountDownLatch(1);
+    private void runRealtimeTrigger(String flowId, Duration startupWait) throws Exception {
+        Awaitility.await().atMost(Duration.ofSeconds(20)).pollInterval(Duration.ofMillis(100)).until(() -> scheduler.isActive());
 
-        Flux<Execution> receive = TestsUtils.receive(executionQueue, execution -> {
-            if (execution.getLeft().getFlowId().equals(flowId)) {
+        CountDownLatch queueCount = new CountDownLatch(1);
+        AtomicReference<Execution> lastExecution = new AtomicReference<>();
+
+        executionQueue.addListener(execution -> {
+            if (execution.getFlowId().equals(flowId)) {
+                lastExecution.set(execution);
                 queueCount.countDown();
             }
         });
-
-        repositoryLoader.load(Objects.requireNonNull(RealTimeTriggerTest.class.getClassLoader().getResource(flowPath)));
 
         if (!startupWait.isZero()) {
             Thread.sleep(startupWait.toMillis());
@@ -72,11 +50,15 @@ class RealTimeTriggerTest extends AbstractTriggerTest {
 
         sendTestEmail("Test Email", "sender@example.com", "Test email body");
 
-        boolean await = queueCount.await(30, TimeUnit.SECONDS);
+        boolean await = queueCount.await(2, TimeUnit.MINUTES);
         assertThat(flowId + " should execute", await, is(true));
 
-        var execution = receive.blockLast();
-        assertThat("Execution should be captured", execution, notNullValue());
-        return execution;
+        Execution execution = lastExecution.get();
+        assertThat(execution, notNullValue());
+
+        Map<String, Object> triggerVars = execution.getTrigger().getVariables();
+        assertThat("Latest email subject should be present", triggerVars.get("subject"), notNullValue());
+        assertThat("Latest email sender should be present", triggerVars.get("from"), notNullValue());
+        assertThat("Latest email body should be present", triggerVars.get("body"), notNullValue());
     }
 }

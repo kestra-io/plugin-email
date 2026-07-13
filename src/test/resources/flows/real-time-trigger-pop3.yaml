@@ -12,8 +12,8 @@ triggers:
     protocol: POP3
     host: "127.0.0.1"
     port: 3145
-    username: "test@localhost"
-    password: "password"
+    username: "{{ 'test@localhost' }}"
+    password: "{{ 'password' }}"
     ssl: false
     trustAllCertificates: true
-    interval: PT1M
+    interval: PT1S
