@@ -106,7 +106,7 @@ dependencies {
     testImplementation "org.hamcrest:hamcrest"
     testImplementation "org.hamcrest:hamcrest-library"
 
-    testImplementation group: 'com.icegreen', name: 'greenmail-junit5', version: '2.1.9'
+    testImplementation group: 'com.icegreen', name: 'greenmail-junit5', version: '2.1.10'
 }
 
 /**********************************************************************************************************************\
