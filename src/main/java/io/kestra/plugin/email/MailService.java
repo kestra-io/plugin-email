@@ -133,6 +133,8 @@ public class MailService {
         "^(AUTH|AUTHENTICATE)\\b.*|^(\\+OK|\\+|.*[Pp]assword).*|^[A-Za-z0-9+/=]{20,}$"
     );
 
+    private static final Pattern UNSAFE_FILENAME_CHARS = Pattern.compile("[^a-zA-Z0-9._-]");
+
     /**
      * Default cap applied to a single attachment before it is stored in internal storage: 25MB.
      */
@@ -369,7 +371,8 @@ public class MailService {
         if (lastSlash >= 0) {
             sanitized = sanitized.substring(lastSlash + 1);
         }
-        sanitized = sanitized.trim().replaceAll("[^a-zA-Z0-9._-]", "_");
+        sanitized = sanitized.trim();
+        sanitized = UNSAFE_FILENAME_CHARS.matcher(sanitized).replaceAll("_");
 
         if (sanitized.isEmpty()) {
             return "attachment-" + index;
@@ -407,12 +410,8 @@ public class MailService {
         return runContext.storage().putFile(tempFile.toFile(), storedName);
     }
 
-    /**
-     * Copies {@code inputStream} to {@code target}, stopping as soon as {@code maxBytes} is exceeded.
-     * Returns the number of bytes copied, or {@code -1} if the limit was exceeded. {@code bodyPart.getSize()}
-     * is not trusted for this check: JavaMail can report {@code -1} or an estimate that does not match the
-     * actual stream length.
-     */
+    // bodyPart.getSize() is not trusted here: JavaMail can report -1 or an estimate that does not
+    // match the actual stream length.
     private static long copyBounded(InputStream inputStream, Path target, long maxBytes) throws IOException {
         byte[] buffer = new byte[COPY_BUFFER_SIZE];
         long total = 0;

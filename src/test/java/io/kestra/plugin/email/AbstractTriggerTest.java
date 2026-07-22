@@ -22,6 +22,9 @@ import jakarta.mail.util.ByteArrayDataSource;
 @KestraTest
 public abstract class AbstractTriggerTest extends AbstractEmailTest {
 
+    protected static final String ATTACHMENT_FILENAME = "report.txt";
+    protected static final String ATTACHMENT_CONTENT = "attachment content";
+
     @RegisterExtension
     static GreenMailExtension greenMail = new GreenMailExtension(
         new ServerSetup[] {

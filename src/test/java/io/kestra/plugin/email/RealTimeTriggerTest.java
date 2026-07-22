@@ -11,6 +11,7 @@ import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.io.IOUtils;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.function.Executable;
 
 import io.kestra.core.junit.annotations.KestraTest;
 import io.kestra.core.models.executions.Execution;
@@ -30,8 +31,6 @@ import static org.hamcrest.Matchers.notNullValue;
 @KestraTest(startRunner = true, startScheduler = true)
 class RealTimeTriggerTest extends AbstractTriggerTest {
     private static final Duration REALTIME_TRIGGER_STARTUP_WAIT = Duration.ofSeconds(5);
-    private static final String ATTACHMENT_FILENAME = "report.txt";
-    private static final String ATTACHMENT_CONTENT = "attachment content";
 
     @Inject
     private LocalFlowRepositoryLoader repositoryLoader;
@@ -101,7 +100,7 @@ class RealTimeTriggerTest extends AbstractTriggerTest {
         );
     }
 
-    private Execution runRealtimeTrigger(String flowPath, String flowId, Duration startupWait, ThrowingRunnable sendEmail)
+    private Execution runRealtimeTrigger(String flowPath, String flowId, Duration startupWait, Executable sendEmail)
         throws Exception {
         var queueCount = new CountDownLatch(1);
 
@@ -118,7 +117,11 @@ class RealTimeTriggerTest extends AbstractTriggerTest {
             Thread.sleep(startupWait.toMillis());
         }
 
-        sendEmail.run();
+        try {
+            sendEmail.execute();
+        } catch (Throwable t) {
+            throw new RuntimeException(t);
+        }
 
         boolean await = queueCount.await(30, TimeUnit.SECONDS);
         assertThat(flowId + " should execute", await, is(true));
@@ -126,10 +129,5 @@ class RealTimeTriggerTest extends AbstractTriggerTest {
         var execution = receive.blockLast();
         assertThat("Execution should be captured", execution, notNullValue());
         return execution;
-    }
-
-    @FunctionalInterface
-    private interface ThrowingRunnable {
-        void run() throws Exception;
     }
 }
