@@ -378,34 +378,27 @@ public class MailService {
         return sanitized.length() > MAX_FILENAME_LENGTH ? sanitized.substring(0, MAX_FILENAME_LENGTH) : sanitized;
     }
 
-    /**
-     * Thrown internally when an attachment stream exceeds {@code maxAttachmentSize}. Never
-     * propagated past {@link #storeAttachment}: callers only see a {@code null} uri.
-     */
-    private static final class AttachmentTooLargeException extends IOException {
-        private AttachmentTooLargeException(String message) {
-            super(message);
-        }
-    }
-
     private static URI storeAttachment(BodyPart bodyPart, String filename, RunContext runContext, long maxAttachmentSize)
         throws IOException, MessagingException {
         Path tempFile = runContext.workingDir().createTempFile();
 
+        long copied;
         try {
-            copyBounded(bodyPart.getInputStream(), tempFile, maxAttachmentSize);
-        } catch (AttachmentTooLargeException e) {
+            copied = copyBounded(bodyPart.getInputStream(), tempFile, maxAttachmentSize);
+        } catch (IOException | MessagingException e) {
+            // The temp file lives in the RunContext working directory, which for RealTimeTrigger spans the
+            // whole IMAP IDLE connection: leaving it behind on failure would accumulate orphan files.
+            Files.deleteIfExists(tempFile);
+            throw e;
+        }
+
+        if (copied < 0) {
             Files.deleteIfExists(tempFile);
             runContext.logger().warn(
                 "Attachment '{}' exceeds the maximum allowed size of {} bytes, keeping its metadata but not its content",
                 filename, maxAttachmentSize
             );
             return null;
-        } catch (IOException | MessagingException e) {
-            // The temp file lives in the RunContext working directory, which for RealTimeTrigger spans the
-            // whole IMAP IDLE connection: leaving it behind on failure would accumulate orphan files.
-            Files.deleteIfExists(tempFile);
-            throw e;
         }
 
         // The storage context is shared across the whole trigger evaluation, so two attachments with the same
@@ -415,11 +408,12 @@ public class MailService {
     }
 
     /**
-     * Copies {@code inputStream} to {@code target}, aborting with {@link AttachmentTooLargeException} as soon
-     * as {@code maxBytes} is exceeded. {@code bodyPart.getSize()} is not trusted for this check: JavaMail can
-     * report {@code -1} or an estimate that does not match the actual stream length.
+     * Copies {@code inputStream} to {@code target}, stopping as soon as {@code maxBytes} is exceeded.
+     * Returns the number of bytes copied, or {@code -1} if the limit was exceeded. {@code bodyPart.getSize()}
+     * is not trusted for this check: JavaMail can report {@code -1} or an estimate that does not match the
+     * actual stream length.
      */
-    private static void copyBounded(InputStream inputStream, Path target, long maxBytes) throws IOException {
+    private static long copyBounded(InputStream inputStream, Path target, long maxBytes) throws IOException {
         byte[] buffer = new byte[COPY_BUFFER_SIZE];
         long total = 0;
 
@@ -428,13 +422,13 @@ public class MailService {
             while ((read = inputStream.read(buffer)) != -1) {
                 total += read;
                 if (total > maxBytes) {
-                    throw new AttachmentTooLargeException(
-                        "Attachment stream exceeds the maximum allowed size of " + maxBytes + " bytes"
-                    );
+                    return -1;
                 }
                 outputStream.write(buffer, 0, read);
             }
         }
+
+        return total;
     }
 
     public static List<EmailData> fetchNewEmails(RunContext runContext, String protocol, String host, Integer port,
