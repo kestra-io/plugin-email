@@ -2,6 +2,7 @@ package io.kestra.plugin.email;
 
 import java.time.Duration;
 
+import io.kestra.core.models.annotations.PluginProperty;
 import io.kestra.core.models.property.Property;
 import io.kestra.core.models.triggers.AbstractTrigger;
 import io.kestra.core.runners.RunContext;
@@ -12,7 +13,6 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
-import io.kestra.core.models.annotations.PluginProperty;
 
 @SuperBuilder
 @Getter
@@ -56,7 +56,10 @@ public abstract class AbstractMailTrigger extends AbstractTrigger {
     @PluginProperty(group = "connection")
     protected final Property<Boolean> ssl = Property.ofValue(true);
 
-    @Schema(title = "Trust all certificates", description = "Skip TLS certificate and hostname validation (testing only). WARNING: this disables protection against man-in-the-middle attacks and must never be enabled in production. Defaults to false")
+    @Schema(
+        title = "Trust all certificates",
+        description = "Skip TLS certificate and hostname validation (testing only). WARNING: this disables protection against man-in-the-middle attacks and must never be enabled in production. Defaults to false"
+    )
     @Builder.Default
     @PluginProperty(group = "advanced")
     protected final Property<Boolean> trustAllCertificates = Property.ofValue(false);
@@ -65,6 +68,14 @@ public abstract class AbstractMailTrigger extends AbstractTrigger {
     @Builder.Default
     @PluginProperty(group = "execution")
     protected final Property<Duration> interval = Property.ofValue(Duration.ofSeconds(60));
+
+    @Schema(
+        title = "Maximum attachment size",
+        description = "Maximum size in bytes of a single attachment stored in internal storage. Larger attachments keep their metadata but get a null uri. Default 26214400 (25MB)"
+    )
+    @Builder.Default
+    @PluginProperty(group = "advanced")
+    protected final Property<Long> maxAttachmentSize = Property.ofValue(MailService.DEFAULT_MAX_ATTACHMENT_SIZE);
 
     protected MailService.MailConfiguration renderMailConfiguration(RunContext runContext) throws Exception {
         String rProtocol = String.valueOf(runContext.render(this.protocol).as(MailService.Protocol.class).orElseThrow());
@@ -75,10 +86,13 @@ public abstract class AbstractMailTrigger extends AbstractTrigger {
         Boolean rSsl = runContext.render(this.ssl).as(Boolean.class).orElse(true);
         Boolean rTrustAllCertificates = runContext.render(this.trustAllCertificates).as(Boolean.class).orElse(false);
         Duration rInterval = runContext.render(this.interval).as(Duration.class).orElse(getInterval());
+        Long rMaxAttachmentSize = runContext.render(this.maxAttachmentSize).as(Long.class).orElse(MailService.DEFAULT_MAX_ATTACHMENT_SIZE);
 
         Integer rPort = runContext.render(this.port).as(Integer.class)
             .orElse(MailService.getDefaultPort(MailService.Protocol.valueOf(rProtocol), rSsl));
 
-        return new MailService.MailConfiguration(rProtocol, rHost, rPort, rUsername, rPassword, rFolder, rSsl, rTrustAllCertificates, rInterval);
+        return new MailService.MailConfiguration(
+            rProtocol, rHost, rPort, rUsername, rPassword, rFolder, rSsl, rTrustAllCertificates, rInterval, rMaxAttachmentSize
+        );
     }
 }

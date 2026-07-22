@@ -61,6 +61,7 @@ import reactor.core.publisher.FluxSink;
                       From: {{ trigger.from }}
                       Date: {{ trigger.date }}
                       Body: {{ trigger.body }}
+                      {% if trigger.attachments is not empty %}First attachment: {{ trigger.attachments[0].uri }}{% endif %}
 
                 triggers:
                   - id: realtime_gmail_trigger
@@ -195,7 +196,7 @@ public class RealTimeTrigger extends AbstractMailTrigger
                                     break;
 
                                 if (message instanceof MimeMessage mimeMessage) {
-                                    MailService.EmailData emailData = MailService.parseEmailData(mimeMessage);
+                                    MailService.EmailData emailData = MailService.parseEmailData(mimeMessage, runContext, config.maxAttachmentSize);
                                     if (emailData != null) {
                                         runContext.logger().info(
                                             "IMAP IDLE: New email - Subject: '{}', From: '{}'",
@@ -296,7 +297,7 @@ public class RealTimeTrigger extends AbstractMailTrigger
                     List<MailService.EmailData> newEmails = MailService.fetchNewEmails(
                         runContext, config.protocol,
                         config.host, config.port, config.username, config.password, config.folder,
-                        config.ssl, config.trustAllCertificates, currentLastFetched
+                        config.ssl, config.trustAllCertificates, config.maxAttachmentSize, currentLastFetched
                     );
 
                     if (!newEmails.isEmpty()) {
