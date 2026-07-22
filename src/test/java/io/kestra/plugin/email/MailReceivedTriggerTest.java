@@ -30,11 +30,18 @@ class MailReceivedTriggerTest extends AbstractTriggerTest {
     private static final String ATTACHMENT_FILENAME = "report.txt";
     private static final String ATTACHMENT_CONTENT = "attachment content";
 
+    private static final String OVERSIZED_ATTACHMENT_FILENAME = "big-report.txt";
+    private static final String OVERSIZED_ATTACHMENT_CONTENT = "this content is larger than the configured limit";
+
     @BeforeEach
     void sendEmailForTest(TestInfo testInfo) throws Exception {
         // Each attachment test needs its own dedicated inbox content: mixing it with "First Email" would make
         // "latestEmail" selection depend on GreenMail's delivery timestamp ordering, which is not deterministic
         // when both messages are delivered within the same second.
+        //
+        // This dispatch cannot move into each test method body: @EvaluateTrigger resolves the Optional<Execution>
+        // parameter (and therefore evaluates the trigger) before the test method body runs, so the email must
+        // already be sitting in the mailbox by the time @BeforeEach returns.
         String testName = testInfo.getTestMethod().map(Method::getName).orElse("");
 
         if (testName.equals("attachmentIsStoredInInternalStorage")) {
@@ -49,6 +56,11 @@ class MailReceivedTriggerTest extends AbstractTriggerTest {
                     new Attachment(ATTACHMENT_FILENAME, "content-1".getBytes(StandardCharsets.UTF_8)),
                     new Attachment(ATTACHMENT_FILENAME, "content-2".getBytes(StandardCharsets.UTF_8))
                 )
+            );
+        } else if (testName.equals("oversizedAttachmentKeepsMetadataWithNullUri")) {
+            sendTestEmailWithAttachment(
+                "Email With Oversized Attachment", "sender4@example.com", "Oversized attachment body",
+                OVERSIZED_ATTACHMENT_FILENAME, OVERSIZED_ATTACHMENT_CONTENT.getBytes(StandardCharsets.UTF_8)
             );
         } else {
             sendTestEmail("First Email", "sender1@example.com", "First test email body");
@@ -163,5 +175,35 @@ class MailReceivedTriggerTest extends AbstractTriggerTest {
 
         assertThat("First attachment content should match what was sent", firstContent, is("content-1"));
         assertThat("Second attachment content should match what was sent", secondContent, is("content-2"));
+    }
+
+    @Test
+    @EvaluateTrigger(flow = "flows/mail-received-trigger-imap-max-attachment-size.yaml", triggerId = "imap-mail-trigger-max-attachment-size")
+    void oversizedAttachmentKeepsMetadataWithNullUri(Optional<Execution> optionalExecution) {
+        // @EvaluateTrigger only exercises the trigger evaluation, not a full flow run through the executor
+        // (see RealTimeTriggerTest for that). A present execution here means the evaluation did not throw
+        // despite the oversized attachment, which is what this test is guarding against.
+        assertThat("Trigger evaluation should still produce an execution despite the oversized attachment", optionalExecution.isPresent(), is(true));
+
+        var execution = optionalExecution.get();
+        Map<String, Object> triggerVars = execution.getTrigger().getVariables();
+
+        @SuppressWarnings("unchecked")
+        var latestEmail = (Map<String, Object>) triggerVars.get("latestEmail");
+        assertThat(
+            "Latest email subject should match the sent oversized-attachment email",
+            latestEmail.get("subject"),
+            is("Email With Oversized Attachment")
+        );
+
+        @SuppressWarnings("unchecked")
+        var attachments = (List<Map<String, Object>>) latestEmail.get("attachments");
+        assertThat("Should have exactly one attachment", attachments, hasSize(1));
+
+        var attachment = attachments.getFirst();
+        assertThat("Attachment filename should still be reported", attachment.get("filename"), is(OVERSIZED_ATTACHMENT_FILENAME));
+        assertThat("Attachment content type should still be reported", attachment.get("contentType"), notNullValue());
+        assertThat("Attachment size should still be reported", attachment.get("size"), notNullValue());
+        assertThat("Attachment uri should be null because it exceeds maxAttachmentSize", attachment.get("uri"), nullValue());
     }
 }

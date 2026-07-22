@@ -49,7 +49,7 @@ import lombok.experimental.SuperBuilder;
                       Subject: {{ trigger.latestEmail.subject }}
                       From: {{ trigger.latestEmail.from }}
                       Date: {{ trigger.latestEmail.date }}
-                      First attachment: {{ trigger.latestEmail.attachments[0].uri }}
+                      {% if trigger.latestEmail.attachments is not empty %}First attachment: {{ trigger.latestEmail.attachments[0].uri }}{% endif %}
 
                 triggers:
                   - id: gmail_inbox_trigger
@@ -81,7 +81,7 @@ public class MailReceivedTrigger extends AbstractMailTrigger
                 runContext, mailConfig.protocol,
                 mailConfig.host, mailConfig.port,
                 mailConfig.username, mailConfig.password, mailConfig.folder, mailConfig.ssl,
-                mailConfig.trustAllCertificates, lastCheckTime
+                mailConfig.trustAllCertificates, mailConfig.maxAttachmentSize, lastCheckTime
             );
 
             if (newEmails.isEmpty()) {
