@@ -27,9 +27,6 @@ class MailReceivedTriggerTest extends AbstractTriggerTest {
     @Inject
     private StorageInterface storageInterface;
 
-    private static final String ATTACHMENT_FILENAME = "report.txt";
-    private static final String ATTACHMENT_CONTENT = "attachment content";
-
     private static final String OVERSIZED_ATTACHMENT_FILENAME = "big-report.txt";
     private static final String OVERSIZED_ATTACHMENT_CONTENT = "this content is larger than the configured limit";
 

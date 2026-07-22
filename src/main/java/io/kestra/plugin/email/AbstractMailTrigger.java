@@ -91,8 +91,17 @@ public abstract class AbstractMailTrigger extends AbstractTrigger {
         Integer rPort = runContext.render(this.port).as(Integer.class)
             .orElse(MailService.getDefaultPort(MailService.Protocol.valueOf(rProtocol), rSsl));
 
-        return new MailService.MailConfiguration(
-            rProtocol, rHost, rPort, rUsername, rPassword, rFolder, rSsl, rTrustAllCertificates, rInterval, rMaxAttachmentSize
-        );
+        return MailService.MailConfiguration.builder()
+            .protocol(rProtocol)
+            .host(rHost)
+            .port(rPort)
+            .username(rUsername)
+            .password(rPassword)
+            .folder(rFolder)
+            .ssl(rSsl)
+            .trustAllCertificates(rTrustAllCertificates)
+            .interval(rInterval)
+            .maxAttachmentSize(rMaxAttachmentSize)
+            .build();
     }
 }
