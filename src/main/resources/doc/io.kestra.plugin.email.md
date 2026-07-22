@@ -13,3 +13,5 @@ Set `host`, `port`, `username`, and `password` on each task, or apply them globa
 `MailExecution` sends a structured execution summary including status, duration, and an execution link, and is designed to be used with a [Flow trigger](https://kestra.io/docs/workflow-components/triggers) in a dedicated monitoring namespace that watches other namespaces for failures — the same pattern as `SlackExecution`.
 
 For inbound email, `MailReceivedTrigger` polls an IMAP inbox on a schedule and starts one execution per batch of new messages; `RealTimeTrigger` starts one execution per message as it arrives. Use `MailReceivedTrigger` for controlled batch processing and `RealTimeTrigger` when you need low-latency response to incoming email.
+
+Both triggers store each attachment in Kestra's internal storage and expose its URI so it can be passed to downstream tasks: `{{ trigger.latestEmail.attachments[0].uri }}` on `MailReceivedTrigger`, `{{ trigger.attachments[0].uri }}` on `RealTimeTrigger`. If an attachment fails to store, its metadata (filename, contentType, size) is still returned with a null `uri`.

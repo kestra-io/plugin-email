@@ -1,9 +1,14 @@
 package io.kestra.plugin.email;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.PrintStream;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.time.Duration;
 import java.time.ZonedDateTime;
 import java.util.*;
@@ -11,7 +16,9 @@ import java.util.regex.Pattern;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
+import io.kestra.core.models.annotations.PluginProperty;
 import io.kestra.core.runners.RunContext;
+import io.kestra.core.utils.IdUtils;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.mail.*;
@@ -21,7 +28,6 @@ import jakarta.mail.internet.MimeMultipart;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.experimental.UtilityClass;
-import io.kestra.core.models.annotations.PluginProperty;
 
 @UtilityClass
 public class MailService {
@@ -101,6 +107,10 @@ public class MailService {
         @Schema(title = "File size in bytes", description = "Attachment size when provided by the server")
         @PluginProperty(group = "advanced")
         private final Integer size;
+
+        @Schema(title = "Attachment URI", description = "URI of the attachment stored in Kestra internal storage")
+        @PluginProperty(group = "advanced")
+        private final URI uri;
     }
 
     @Builder
@@ -231,7 +241,7 @@ public class MailService {
         };
     }
 
-    public static EmailData parseEmailData(MimeMessage message) throws MessagingException, IOException {
+    public static EmailData parseEmailData(MimeMessage message, RunContext runContext) throws MessagingException, IOException {
         Date receivedDate = message.getReceivedDate() != null ? message.getReceivedDate() : message.getSentDate();
         ZonedDateTime date = receivedDate != null
             ? ZonedDateTime.ofInstant(receivedDate.toInstant(), ZonedDateTime.now().getZone())
@@ -246,7 +256,7 @@ public class MailService {
             .date(date)
             .body(extractTextContent(message))
             .messageId(message.getMessageID())
-            .attachments(extractAttachments(message))
+            .attachments(extractAttachments(message, runContext))
             .build();
     }
 
@@ -290,19 +300,20 @@ public class MailService {
         return result.toString();
     }
 
-    private static List<AttachmentInfo> extractAttachments(Message message) throws MessagingException, IOException {
+    private static List<AttachmentInfo> extractAttachments(Message message, RunContext runContext)
+        throws MessagingException, IOException {
         List<AttachmentInfo> attachments = new ArrayList<>();
 
         if (message.isMimeType("multipart/*")) {
             MimeMultipart multipart = (MimeMultipart) message.getContent();
-            extractAttachmentsFromMultipart(multipart, attachments);
+            extractAttachmentsFromMultipart(multipart, attachments, runContext);
         }
 
         return attachments;
     }
 
-    private static void extractAttachmentsFromMultipart(MimeMultipart multipart, List<AttachmentInfo> attachments)
-        throws MessagingException, IOException {
+    private static void extractAttachmentsFromMultipart(MimeMultipart multipart, List<AttachmentInfo> attachments,
+        RunContext runContext) throws MessagingException, IOException {
         int count = multipart.getCount();
 
         for (int i = 0; i < count; i++) {
@@ -312,18 +323,59 @@ public class MailService {
                 Part.ATTACHMENT.equalsIgnoreCase(bodyPart.getDisposition()) ||
                     (bodyPart.getFileName() != null && !bodyPart.getFileName().isEmpty())
             ) {
+                String filename = sanitizeFilename(bodyPart.getFileName(), attachments.size());
 
-                AttachmentInfo attachment = AttachmentInfo.builder()
+                AttachmentInfo.AttachmentInfoBuilder attachment = AttachmentInfo.builder()
                     .filename(bodyPart.getFileName())
                     .contentType(bodyPart.getContentType())
-                    .size(bodyPart.getSize())
-                    .build();
+                    .size(bodyPart.getSize());
 
-                attachments.add(attachment);
+                try {
+                    attachment.uri(storeAttachment(bodyPart, filename, runContext));
+                } catch (IOException | MessagingException e) {
+                    // A single unreadable/unstorable attachment must not fail the whole trigger evaluation.
+                    runContext.logger().warn("Failed to store attachment '{}' in internal storage", filename, e);
+                }
+
+                attachments.add(attachment.build());
             } else if (bodyPart.isMimeType("multipart/*")) {
-                extractAttachmentsFromMultipart((MimeMultipart) bodyPart.getContent(), attachments);
+                extractAttachmentsFromMultipart((MimeMultipart) bodyPart.getContent(), attachments, runContext);
             }
         }
+    }
+
+    /**
+     * Strips any path information from an attachment filename before it is used on the local
+     * filesystem. Filenames come from untrusted senders and could otherwise be crafted for a
+     * path traversal (CWE-22).
+     */
+    private static String sanitizeFilename(String filename, int index) {
+        if (filename == null) {
+            return "attachment-" + index;
+        }
+
+        String sanitized = filename.replace('\\', '/').replace("\0", "");
+        int lastSlash = sanitized.lastIndexOf('/');
+        if (lastSlash >= 0) {
+            sanitized = sanitized.substring(lastSlash + 1);
+        }
+        sanitized = sanitized.trim();
+
+        return sanitized.isEmpty() ? "attachment-" + index : sanitized;
+    }
+
+    private static URI storeAttachment(BodyPart bodyPart, String filename, RunContext runContext)
+        throws IOException, MessagingException {
+        Path tempFile = runContext.workingDir().createTempFile();
+
+        try (InputStream inputStream = bodyPart.getInputStream()) {
+            Files.copy(inputStream, tempFile, StandardCopyOption.REPLACE_EXISTING);
+        }
+
+        // The storage context is shared across the whole trigger evaluation, so two attachments with the same
+        // filename (within one email, or across emails in one batch) would otherwise collide on the same URI.
+        String storedName = IdUtils.create() + "-" + filename;
+        return runContext.storage().putFile(tempFile.toFile(), storedName);
     }
 
     public static List<EmailData> fetchNewEmails(RunContext runContext, String protocol, String host, Integer port,
@@ -387,7 +439,7 @@ public class MailService {
                         );
 
                         if (messageDate.isAfter(lastCheckTime)) {
-                            EmailData emailData = parseEmailData(mimeMessage);
+                            EmailData emailData = parseEmailData(mimeMessage, runContext);
                             if (emailData != null) {
                                 newEmails.add(emailData);
                                 runContext.logger().info(

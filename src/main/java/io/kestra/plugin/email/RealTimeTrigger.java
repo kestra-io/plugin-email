@@ -61,6 +61,7 @@ import reactor.core.publisher.FluxSink;
                       From: {{ trigger.from }}
                       Date: {{ trigger.date }}
                       Body: {{ trigger.body }}
+                      First attachment: {{ trigger.attachments[0].uri }}
 
                 triggers:
                   - id: realtime_gmail_trigger
@@ -195,7 +196,7 @@ public class RealTimeTrigger extends AbstractMailTrigger
                                     break;
 
                                 if (message instanceof MimeMessage mimeMessage) {
-                                    MailService.EmailData emailData = MailService.parseEmailData(mimeMessage);
+                                    MailService.EmailData emailData = MailService.parseEmailData(mimeMessage, runContext);
                                     if (emailData != null) {
                                         runContext.logger().info(
                                             "IMAP IDLE: New email - Subject: '{}', From: '{}'",

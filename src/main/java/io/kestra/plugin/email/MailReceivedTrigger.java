@@ -49,6 +49,7 @@ import lombok.experimental.SuperBuilder;
                       Subject: {{ trigger.latestEmail.subject }}
                       From: {{ trigger.latestEmail.from }}
                       Date: {{ trigger.latestEmail.date }}
+                      First attachment: {{ trigger.latestEmail.attachments[0].uri }}
 
                 triggers:
                   - id: gmail_inbox_trigger
