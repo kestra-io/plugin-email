@@ -22,7 +22,7 @@ import io.kestra.core.models.annotations.PluginProperty;
 @NoArgsConstructor
 @Schema(
     title = "Email a Flow execution summary",
-    description = "Sends a templated email that links to the execution page and includes the execution ID, namespace, flow name, start time, duration, final status, and the failing task when applicable. Uses built-in HTML and text templates with `executionId` defaulting to the current run. Use this in Flow-trigger alerting scenarios and prefer [MailSend](https://kestra.io/plugins/plugin-email/io.kestra.plugin.email.mailsend) for `errors` handlers; see [alerting docs](https://kestra.io/docs/administrator-guide/monitoring#alerting)."
+    description = "Sends a templated email that links to the execution page and includes the execution ID, namespace, flow name, start time, duration, final status, and the failing task when applicable. Uses built-in HTML and text templates with `executionId` defaulting to the current run. Use this in Flow-trigger alerting scenarios and prefer [MailSend](https://kestra.io/plugins/plugin-email/tasks/io.kestra.plugin.email.mailsend) for `errors` handlers; see [alerting docs](https://kestra.io/docs/administrator-guide/monitoring#alerting)."
 )
 @Plugin(
     examples = {

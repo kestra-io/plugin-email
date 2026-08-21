@@ -10,7 +10,7 @@ Set `host`, `port`, `username`, and `password` on each task, or apply them globa
 
 `MailSend` sends an email as a step within a flow — set `to`, `subject`, and `htmlTextContent` (or `plainTextContent` for plain-text only). Use it for ad hoc notifications and alerts where you control the message body.
 
-`MailExecution` sends a structured execution summary including status, duration, and an execution link, and is designed to be used with a [Flow trigger](https://kestra.io/docs/workflow-components/triggers) in a dedicated monitoring namespace that watches other namespaces for failures — the same pattern as `SlackExecution`.
+`MailExecution` sends a structured execution summary including status, duration, and an execution link, and is designed to be used with a [Flow trigger](https://kestra.io/docs/workflow-components/triggers/flow-trigger) in a dedicated monitoring namespace that watches other namespaces for failures — the same pattern as `SlackExecution`.
 
 For inbound email, `MailReceivedTrigger` polls an IMAP inbox on a schedule and starts one execution per batch of new messages; `RealTimeTrigger` starts one execution per message as it arrives. Use `MailReceivedTrigger` for controlled batch processing and `RealTimeTrigger` when you need low-latency response to incoming email.
 

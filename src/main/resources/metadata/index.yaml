@@ -1,8 +1,8 @@
 group: io.kestra.plugin.email
 name: "email"
 title: "Email"
-description: "Tasks that send email notifications."
-body: "Configure SMTP server/port, credentials, from/to addresses, subject, and body/attachments to send emails from workflows; supports TLS/SSL settings for secure delivery."
+description: "Send emails from flows and trigger flows from incoming email."
+body: "Configure SMTP server/port, credentials, from/to addresses, subject, and body/attachments to send emails from workflows; supports TLS/SSL settings for secure delivery. The `MailReceivedTrigger` and `RealTimeTrigger` watch an IMAP or POP3 mailbox and start flows when new email arrives."
 videos: []
 createdBy: "Kestra Core Team"
 managedBy: "Kestra Core Team"

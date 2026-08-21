@@ -248,14 +248,14 @@ public class MailSend extends Task implements RunnableTask<VoidOutput> {
     /* Mail info */
     @Schema(
         title = "Sender address",
-        description = "RFC2822 From address presented to recipients"
+        description = "RFC2822 From address presented to recipients. Required."
     )
     @PluginProperty(group = "source")
     protected Property<String> from;
 
     @Schema(
         title = "Recipients (To)",
-        description = "Semicolon-delimited list of RFC2822 addresses for primary recipients"
+        description = "Semicolon-delimited list of RFC2822 addresses for primary recipients. Required."
     )
     @PluginProperty(group = "destination")
     protected Property<String> to;
