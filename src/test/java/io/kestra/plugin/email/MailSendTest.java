@@ -199,14 +199,19 @@ public class MailSendTest {
         assertThat(body, containsString("<strong>Status :</strong> SUCCE=\r\nSS"));
         assertThat(body, containsString("<strong>Env :</strong> dev"));
         assertThat(body, containsString("myCustomMessage"));
-        assertThat(body, containsString("Content-Type: image/png; filename=kestra.png; name=kestra.png"));
+        assertThat(body, containsString("Content-Type: image/png; name=kestra.png"));
+        assertThat(body, containsString("Content-Disposition: inline; filename=kestra.png"));
 
         MimeBodyPart filePart = ((MimeBodyPart) content.getBodyPart(1));
         String file = IOUtils.toString(filePart.getInputStream(), StandardCharsets.UTF_8);
 
-        assertThat(filePart.getContentType(), is("text/yaml; filename=" + attachmentFilename + "; name=" + attachmentFilename));
+        assertThat(filePart.getContentType(), is("text/yaml; name=" + attachmentFilename));
+        assertThat(filePart.getDisposition(), is("attachment"));
         assertThat(filePart.getFileName(), is(attachmentFilename));
-        assertThat(file.replace("\r", ""), is(IOUtils.toString(storageInterface.get(MAIN_TENANT, null, putAttachment), StandardCharsets.UTF_8)));
+        assertThat(
+            file.replace("\r", ""),
+            is(IOUtils.toString(storageInterface.get(MAIN_TENANT, null, putAttachment), StandardCharsets.UTF_8))
+        );
     }
 
     @Test

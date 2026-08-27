@@ -27,6 +27,7 @@ import io.kestra.core.runners.RunContext;
 import io.kestra.core.serializers.JacksonMapper;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.mail.Message;
 import jakarta.mail.util.ByteArrayDataSource;
 import jakarta.validation.constraints.NotNull;
 import lombok.*;
@@ -377,7 +378,12 @@ public class MailSend extends Task implements RunnableTask<VoidOutput> {
             .orElse("Please view this email in a modern email client");
 
         EmailPopulatingBuilder builder = EmailBuilder.startingBlank()
-            .to(runContext.render(to).as(String.class).orElseThrow())
+            .withRecipients(
+                null,
+                false,
+                Message.RecipientType.TO,
+                runContext.render(to).as(String.class).orElseThrow()
+            )
             .from(runContext.render(from).as(String.class).orElseThrow())
             .withSubject(runContext.render(subject).as(String.class).orElse(null))
             .withHTMLText(htmlContent)
@@ -398,8 +404,12 @@ public class MailSend extends Task implements RunnableTask<VoidOutput> {
             builder.withEmbeddedImages(this.attachmentResources(embeddedImagesList, runContext));
         }
 
-        runContext.render(cc).as(String.class).ifPresent(builder::cc);
-        runContext.render(bcc).as(String.class).ifPresent(builder::bcc);
+        runContext.render(cc).as(String.class).ifPresent(
+            value -> builder.withRecipients(null, false, Message.RecipientType.CC, value)
+        );
+        runContext.render(bcc).as(String.class).ifPresent(
+            value -> builder.withRecipients(null, false, Message.RecipientType.BCC, value)
+        );
 
         return builder.buildEmail();
     }
