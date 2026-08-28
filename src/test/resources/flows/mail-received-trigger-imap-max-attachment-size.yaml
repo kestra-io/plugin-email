@@ -1,0 +1,18 @@
+id: mail-received-trigger-imap-max-attachment-size
+namespace: io.kestra.tests
+tasks:
+  - id: process-imap-emails
+    type: io.kestra.plugin.core.debug.Return
+    format: "IMAP emails received: {{trigger.total}} emails, latest: {{trigger.latestEmail.subject}}"
+triggers:
+  - id: imap-mail-trigger-max-attachment-size
+    type: io.kestra.plugin.email.MailReceivedTrigger
+    protocol: IMAP
+    host: "127.0.0.1"
+    port: 3144
+    username: "test@localhost"
+    password: "password"
+    ssl: false
+    trustAllCertificates: true
+    interval: PT1S
+    maxAttachmentSize: 10

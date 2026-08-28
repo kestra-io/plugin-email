@@ -1,9 +1,13 @@
 package io.kestra.plugin.email;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.PrintStream;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.ZonedDateTime;
 import java.util.*;
@@ -11,7 +15,9 @@ import java.util.regex.Pattern;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
+import io.kestra.core.models.annotations.PluginProperty;
 import io.kestra.core.runners.RunContext;
+import io.kestra.core.utils.IdUtils;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.mail.*;
@@ -21,7 +27,6 @@ import jakarta.mail.internet.MimeMultipart;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.experimental.UtilityClass;
-import io.kestra.core.models.annotations.PluginProperty;
 
 @UtilityClass
 public class MailService {
@@ -90,7 +95,7 @@ public class MailService {
     @Getter
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class AttachmentInfo {
-        @Schema(title = "Attachment filename", description = "Filename as provided by the email")
+        @Schema(title = "Attachment filename", description = "Name as provided by the sender. Can be null when the sender did not provide one")
         @PluginProperty(group = "advanced")
         private final String filename;
 
@@ -101,6 +106,10 @@ public class MailService {
         @Schema(title = "File size in bytes", description = "Attachment size when provided by the server")
         @PluginProperty(group = "advanced")
         private final Integer size;
+
+        @Schema(title = "Attachment URI", description = "URI of the attachment stored in Kestra internal storage")
+        @PluginProperty(group = "advanced")
+        private final URI uri;
     }
 
     @Builder
@@ -115,6 +124,7 @@ public class MailService {
         public final Boolean ssl;
         public final Boolean trustAllCertificates;
         public final Duration interval;
+        public final Long maxAttachmentSize;
     }
 
     // CWE-532 / OWASP A09:2021: lines from the JavaMail protocol transcript that carry
@@ -122,6 +132,16 @@ public class MailService {
     private static final Pattern SENSITIVE_DEBUG_LINE = Pattern.compile(
         "^(AUTH|AUTHENTICATE)\\b.*|^(\\+OK|\\+|.*[Pp]assword).*|^[A-Za-z0-9+/=]{20,}$"
     );
+
+    private static final Pattern UNSAFE_FILENAME_CHARS = Pattern.compile("[^a-zA-Z0-9._-]");
+
+    /**
+     * Default cap applied to a single attachment before it is stored in internal storage: 25MB.
+     */
+    public static final long DEFAULT_MAX_ATTACHMENT_SIZE = 25L * 1024 * 1024;
+
+    private static final int MAX_FILENAME_LENGTH = 200;
+    private static final int COPY_BUFFER_SIZE = 8192;
 
     public static Properties setupMailProperties(String protocol, String host, Integer port, Boolean ssl,
         Boolean trustAllCertificates, RunContext runContext) {
@@ -231,7 +251,8 @@ public class MailService {
         };
     }
 
-    public static EmailData parseEmailData(MimeMessage message) throws MessagingException, IOException {
+    public static EmailData parseEmailData(MimeMessage message, RunContext runContext, long maxAttachmentSize)
+        throws MessagingException, IOException {
         Date receivedDate = message.getReceivedDate() != null ? message.getReceivedDate() : message.getSentDate();
         ZonedDateTime date = receivedDate != null
             ? ZonedDateTime.ofInstant(receivedDate.toInstant(), ZonedDateTime.now().getZone())
@@ -246,7 +267,7 @@ public class MailService {
             .date(date)
             .body(extractTextContent(message))
             .messageId(message.getMessageID())
-            .attachments(extractAttachments(message))
+            .attachments(extractAttachments(message, runContext, maxAttachmentSize))
             .build();
     }
 
@@ -290,19 +311,20 @@ public class MailService {
         return result.toString();
     }
 
-    private static List<AttachmentInfo> extractAttachments(Message message) throws MessagingException, IOException {
+    private static List<AttachmentInfo> extractAttachments(Message message, RunContext runContext, long maxAttachmentSize)
+        throws MessagingException, IOException {
         List<AttachmentInfo> attachments = new ArrayList<>();
 
         if (message.isMimeType("multipart/*")) {
             MimeMultipart multipart = (MimeMultipart) message.getContent();
-            extractAttachmentsFromMultipart(multipart, attachments);
+            extractAttachmentsFromMultipart(multipart, attachments, runContext, maxAttachmentSize);
         }
 
         return attachments;
     }
 
-    private static void extractAttachmentsFromMultipart(MimeMultipart multipart, List<AttachmentInfo> attachments)
-        throws MessagingException, IOException {
+    private static void extractAttachmentsFromMultipart(MimeMultipart multipart, List<AttachmentInfo> attachments,
+        RunContext runContext, long maxAttachmentSize) throws MessagingException, IOException {
         int count = multipart.getCount();
 
         for (int i = 0; i < count; i++) {
@@ -312,23 +334,105 @@ public class MailService {
                 Part.ATTACHMENT.equalsIgnoreCase(bodyPart.getDisposition()) ||
                     (bodyPart.getFileName() != null && !bodyPart.getFileName().isEmpty())
             ) {
+                String filename = sanitizeFilename(bodyPart.getFileName(), attachments.size());
 
-                AttachmentInfo attachment = AttachmentInfo.builder()
+                AttachmentInfo.AttachmentInfoBuilder attachment = AttachmentInfo.builder()
                     .filename(bodyPart.getFileName())
                     .contentType(bodyPart.getContentType())
-                    .size(bodyPart.getSize())
-                    .build();
+                    .size(bodyPart.getSize());
 
-                attachments.add(attachment);
+                try {
+                    attachment.uri(storeAttachment(bodyPart, filename, runContext, maxAttachmentSize));
+                } catch (IOException | MessagingException e) {
+                    // A single unreadable/unstorable attachment must not fail the whole trigger evaluation.
+                    runContext.logger().warn("Failed to store attachment '{}' in internal storage", filename, e);
+                }
+
+                attachments.add(attachment.build());
             } else if (bodyPart.isMimeType("multipart/*")) {
-                extractAttachmentsFromMultipart((MimeMultipart) bodyPart.getContent(), attachments);
+                extractAttachmentsFromMultipart((MimeMultipart) bodyPart.getContent(), attachments, runContext, maxAttachmentSize);
             }
         }
     }
 
+    /**
+     * Strips any path information from an attachment filename before it is used on the local
+     * filesystem, and restricts it to a safe character set and length. Filenames come from
+     * untrusted senders and could otherwise be crafted for a path traversal (CWE-22) or for
+     * characters (#, ?, %) that get misinterpreted when the storage URI is built.
+     */
+    private static String sanitizeFilename(String filename, int index) {
+        if (filename == null) {
+            return "attachment-" + index;
+        }
+
+        String sanitized = filename.replace('\\', '/').replace("\0", "");
+        int lastSlash = sanitized.lastIndexOf('/');
+        if (lastSlash >= 0) {
+            sanitized = sanitized.substring(lastSlash + 1);
+        }
+        sanitized = sanitized.trim();
+        sanitized = UNSAFE_FILENAME_CHARS.matcher(sanitized).replaceAll("_");
+
+        if (sanitized.isEmpty()) {
+            return "attachment-" + index;
+        }
+
+        return sanitized.length() > MAX_FILENAME_LENGTH ? sanitized.substring(0, MAX_FILENAME_LENGTH) : sanitized;
+    }
+
+    private static URI storeAttachment(BodyPart bodyPart, String filename, RunContext runContext, long maxAttachmentSize)
+        throws IOException, MessagingException {
+        Path tempFile = runContext.workingDir().createTempFile();
+
+        long copied;
+        try {
+            copied = copyBounded(bodyPart.getInputStream(), tempFile, maxAttachmentSize);
+        } catch (IOException | MessagingException e) {
+            // The temp file lives in the RunContext working directory, which for RealTimeTrigger spans the
+            // whole IMAP IDLE connection: leaving it behind on failure would accumulate orphan files.
+            Files.deleteIfExists(tempFile);
+            throw e;
+        }
+
+        if (copied < 0) {
+            Files.deleteIfExists(tempFile);
+            runContext.logger().warn(
+                "Attachment '{}' exceeds the maximum allowed size of {} bytes, keeping its metadata but not its content",
+                filename, maxAttachmentSize
+            );
+            return null;
+        }
+
+        // The storage context is shared across the whole trigger evaluation, so two attachments with the same
+        // filename (within one email, or across emails in one batch) would otherwise collide on the same URI.
+        String storedName = IdUtils.create() + "-" + filename;
+        return runContext.storage().putFile(tempFile.toFile(), storedName);
+    }
+
+    // bodyPart.getSize() is not trusted here: JavaMail can report -1 or an estimate that does not
+    // match the actual stream length.
+    private static long copyBounded(InputStream inputStream, Path target, long maxBytes) throws IOException {
+        byte[] buffer = new byte[COPY_BUFFER_SIZE];
+        long total = 0;
+
+        try (inputStream; var outputStream = Files.newOutputStream(target)) {
+            int read;
+            while ((read = inputStream.read(buffer)) != -1) {
+                total += read;
+                if (total > maxBytes) {
+                    return -1;
+                }
+                outputStream.write(buffer, 0, read);
+            }
+        }
+
+        return total;
+    }
+
     public static List<EmailData> fetchNewEmails(RunContext runContext, String protocol, String host, Integer port,
         String username, String password, String folder, Boolean ssl, Boolean trustAllCertificates,
-        ZonedDateTime lastCheckTime) throws MessagingException, IOException {
+        Long maxAttachmentSize, ZonedDateTime lastCheckTime) throws MessagingException, IOException {
 
         Properties props = setupMailProperties(protocol, host, port, ssl, trustAllCertificates, runContext);
         String protocolName = getProtocolName(protocol, ssl);
@@ -338,7 +442,7 @@ public class MailService {
 
         try {
             connectToStore(store, host, port, username, password, runContext);
-            return processMessages(store, folder, lastCheckTime, runContext);
+            return processMessages(store, folder, lastCheckTime, runContext, maxAttachmentSize);
         } finally {
             if (store.isConnected()) {
                 try {
@@ -351,7 +455,7 @@ public class MailService {
     }
 
     private static List<EmailData> processMessages(Store store, String folder, ZonedDateTime lastCheckTime,
-        RunContext runContext) throws MessagingException, IOException {
+        RunContext runContext, long maxAttachmentSize) throws MessagingException, IOException {
         List<EmailData> newEmails = new ArrayList<>();
         Folder mailFolder = store.getFolder(folder);
         try {
@@ -387,7 +491,7 @@ public class MailService {
                         );
 
                         if (messageDate.isAfter(lastCheckTime)) {
-                            EmailData emailData = parseEmailData(mimeMessage);
+                            EmailData emailData = parseEmailData(mimeMessage, runContext, maxAttachmentSize);
                             if (emailData != null) {
                                 newEmails.add(emailData);
                                 runContext.logger().info(

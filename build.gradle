@@ -1,16 +1,16 @@
 plugins {
-    id 'io.kestra.gradle.repository-conventions' version '1.2.5'
-    id "io.kestra.gradle.plugin-doc-lint" version "1.2.5"
-    id 'io.kestra.gradle.spotless-conventions' version '1.2.5'
+    id 'io.kestra.gradle.repository-conventions' version '1.2.6'
+    id "io.kestra.gradle.plugin-doc-lint" version "1.2.6"
+    id 'io.kestra.gradle.spotless-conventions' version '1.2.6'
     id "com.vanniktech.maven.publish" version "0.37.0"
-    id "io.kestra.gradle.inject-bom-versions" version "1.2.5"
+    id "io.kestra.gradle.inject-bom-versions" version "1.2.6"
     id 'java-library'
     id "idea"
     id 'jacoco'
     id "com.adarshr.test-logger" version "4.0.0"
-    id "com.gradleup.shadow" version "9.4.3"
+    id "com.gradleup.shadow" version "9.6.1"
     id 'signing'
-    id "com.github.ben-manes.versions" version "0.54.0"
+    id "com.github.ben-manes.versions" version "0.61.0"
     id 'net.researchgate.release' version '3.1.0'
 }
 
@@ -106,7 +106,7 @@ dependencies {
     testImplementation "org.hamcrest:hamcrest"
     testImplementation "org.hamcrest:hamcrest-library"
 
-    testImplementation group: 'com.icegreen', name: 'greenmail-junit5', version: '2.1.9'
+    testImplementation group: 'com.icegreen', name: 'greenmail-junit5', version: '2.1.13'
 }
 
 /**********************************************************************************************************************\
@@ -115,21 +115,6 @@ dependencies {
 dependencies {
     testImplementation enforcedPlatform("io.kestra:platform:$kestraVersion")
     testImplementation "io.qameta.allure:allure-junit5"
-}
-
-configurations {
-    agent {
-        canBeResolved = true
-        canBeConsumed = true
-    }
-}
-
-dependencies {
-    agent "org.aspectj:aspectjweaver:1.9.25.1"
-}
-
-test {
-    jvmArgs = ["-javaagent:${configurations.agent.singleFile}"]
 }
 
 /**********************************************************************************************************************\
