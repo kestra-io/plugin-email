@@ -378,8 +378,10 @@ public class MailSend extends Task implements RunnableTask<VoidOutput> {
             .orElse("Please view this email in a modern email client");
 
         EmailPopulatingBuilder builder = EmailBuilder.startingBlank()
-            .withRecipients(null, false, RecipientType.TO, runContext.render(to).as(String.class).orElseThrow())
-            .from(runContext.render(from).as(String.class).orElseThrow())
+            .withRecipients(null, false, RecipientType.TO, runContext.render(to).as(String.class)
+                .orElseThrow(() -> new IllegalArgumentException("'to' must be set to send an email")))
+            .from(runContext.render(from).as(String.class)
+                .orElseThrow(() -> new IllegalArgumentException("'from' must be set to send an email")))
             .withSubject(runContext.render(subject).as(String.class).orElse(null))
             .withHTMLText(htmlContent)
             .withPlainText(textContent)
