@@ -4,7 +4,7 @@ Send email from flows and trigger flows from incoming email using standard SMTP 
 
 ## Authentication
 
-Set `host`, `port`, `username`, and `password` on each task, or apply them globally with [plugin defaults](https://kestra.io/docs/workflow-components/plugin-defaults) to avoid repetition. Store credentials in [secrets](https://kestra.io/docs/concepts/secret). Control encryption via `transportStrategy`: the default `SMTPS` uses implicit TLS on port 465; set it to `SMTP_TLS` for STARTTLS on port 587; or `SMTP` for unencrypted connections.
+Set `host`, `port`, `username`, and `password` on each task. Store credentials in [secrets](https://kestra.io/docs/concepts/secret). Control encryption via `transportStrategy`: the default `SMTPS` uses implicit TLS on port 465; set it to `SMTP_TLS` for STARTTLS on port 587; or `SMTP` for unencrypted connections.
 
 ## Tasks
 
