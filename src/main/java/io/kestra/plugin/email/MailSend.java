@@ -251,6 +251,7 @@ public class MailSend extends Task implements RunnableTask<VoidOutput> {
         title = "Sender address",
         description = "RFC2822 From address presented to recipients"
     )
+    @NotNull
     @PluginProperty(group = "source")
     protected Property<String> from;
 
@@ -258,6 +259,7 @@ public class MailSend extends Task implements RunnableTask<VoidOutput> {
         title = "Recipients (To)",
         description = "Semicolon-delimited list of RFC2822 addresses for primary recipients"
     )
+    @NotNull
     @PluginProperty(group = "destination")
     protected Property<String> to;
 
