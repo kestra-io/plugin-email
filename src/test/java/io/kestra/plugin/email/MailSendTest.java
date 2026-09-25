@@ -51,6 +51,7 @@ public class MailSendTest {
     private static final String FROM = "from@mail.com";
     private static final String TO = "to@mail.com";
     private static final String BCC = "bcc@mail.com";
+    private static final String CC = "cc@mail.com";
     private static final String SUBJECT = "Mail subject";
     private static String template = null;
     private static String textTemplate = null;
@@ -152,6 +153,7 @@ public class MailSendTest {
             .from(Property.ofValue(FROM))
             .to(Property.ofValue(TO))
             .bcc(Property.ofValue(BCC))
+            .cc(Property.ofValue(CC))
             .subject(Property.ofValue(SUBJECT))
             .htmlTextContent(Property.ofExpression(template))
             .plainTextContent(Property.ofValue(textTemplate))
@@ -174,12 +176,15 @@ public class MailSendTest {
         org.assertj.core.api.Assertions.assertThat(builtEmail.getBccRecipients())
             .extracting(org.simplejavamail.api.email.Recipient::getAddress)
             .containsExactly(BCC);
+        org.assertj.core.api.Assertions.assertThat(builtEmail.getCcRecipients())
+            .extracting(org.simplejavamail.api.email.Recipient::getAddress)
+            .containsExactly(CC);
 
         mailSend.run(runContext);
 
         MimeMessage[] receivedMessages = greenMail.getReceivedMessages();
 
-        org.hamcrest.MatcherAssert.assertThat(receivedMessages.length, is(2));
+        org.hamcrest.MatcherAssert.assertThat(receivedMessages.length, is(3));
 
         MimeMessage mimeMessage = receivedMessages[0];
         MimeMultipart content = (MimeMultipart) mimeMessage.getContent();

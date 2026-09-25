@@ -8,6 +8,7 @@ import java.util.Map;
 import org.simplejavamail.api.email.AttachmentResource;
 import org.simplejavamail.api.email.Email;
 import org.simplejavamail.api.email.EmailPopulatingBuilder;
+import org.simplejavamail.api.email.Recipient;
 import org.simplejavamail.api.mailer.Mailer;
 import org.simplejavamail.api.mailer.config.TransportStrategy;
 import org.simplejavamail.email.EmailBuilder;
@@ -380,8 +381,8 @@ public class MailSend extends Task implements RunnableTask<VoidOutput> {
             .orElse("Please view this email in a modern email client");
 
         EmailPopulatingBuilder builder = EmailBuilder.startingBlank()
-            .withRecipients(null, false, RecipientType.TO, runContext.render(to).as(String.class)
-                .orElseThrow(() -> new IllegalArgumentException("'to' must be set to send an email")))
+            .withRecipients(new Recipient(null, runContext.render(to).as(String.class)
+                .orElseThrow(() -> new IllegalArgumentException("'to' must be set to send an email")), RecipientType.TO, null))
             .from(runContext.render(from).as(String.class)
                 .orElseThrow(() -> new IllegalArgumentException("'from' must be set to send an email")))
             .withSubject(runContext.render(subject).as(String.class).orElse(null))
@@ -403,8 +404,8 @@ public class MailSend extends Task implements RunnableTask<VoidOutput> {
             builder.withEmbeddedImages(this.attachmentResources(embeddedImagesList, runContext));
         }
 
-        runContext.render(cc).as(String.class).ifPresent(address -> builder.withRecipients(null, false, RecipientType.CC, address));
-        runContext.render(bcc).as(String.class).ifPresent(address -> builder.withRecipients(null, false, RecipientType.BCC, address));
+        runContext.render(cc).as(String.class).ifPresent(address -> builder.withRecipients(new Recipient(null, address, RecipientType.CC, null)));
+        runContext.render(bcc).as(String.class).ifPresent(address -> builder.withRecipients(new Recipient(null, address, RecipientType.BCC, null)));
 
         return builder.buildEmail();
     }
