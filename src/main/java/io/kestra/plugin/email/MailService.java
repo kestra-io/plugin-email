@@ -142,6 +142,7 @@ public class MailService {
 
     private static final int MAX_FILENAME_LENGTH = 200;
     private static final int COPY_BUFFER_SIZE = 8192;
+    private static final int MIN_MESSAGES_TO_CHECK = 10;
 
     public static Properties setupMailProperties(String protocol, String host, Integer port, Boolean ssl,
         Boolean trustAllCertificates, RunContext runContext) {
@@ -469,12 +470,12 @@ public class MailService {
 
             runContext.logger().info("Checking for emails newer than: {}", lastCheckTime);
 
-            int messagesToCheck = Math.min(messageCount, 10);
-            Message[] messages = mailFolder.getMessages(messageCount - messagesToCheck + 1, messageCount);
+            int checkedMessages = 0;
+            for (int messageNumber = messageCount; messageNumber >= 1; messageNumber--) {
+                Message message = mailFolder.getMessage(messageNumber);
+                checkedMessages++;
+                boolean isNew = false;
 
-            runContext.logger().info("Checking {} messages out of {} total", messagesToCheck, messageCount);
-
-            for (Message message : messages) {
                 if (message instanceof MimeMessage mimeMessage) {
                     Date receivedDate = message.getReceivedDate() != null ? message.getReceivedDate()
                         : message.getSentDate();
@@ -491,9 +492,10 @@ public class MailService {
                         );
 
                         if (messageDate.isAfter(lastCheckTime)) {
+                            isNew = true;
                             EmailData emailData = parseEmailData(mimeMessage, runContext, maxAttachmentSize);
                             if (emailData != null) {
-                                newEmails.add(emailData);
+                                newEmails.addFirst(emailData);
                                 runContext.logger().info(
                                     "New email - Subject: '{}', From: '{}', Body: '{}'",
                                     emailData.getSubject(), emailData.getFrom(),
@@ -506,7 +508,14 @@ public class MailService {
                         runContext.logger().debug("Message has no received date or sent date.");
                     }
                 }
+
+                // Arrival order and message dates can disagree, so an older message only ends the scan once the newest ones have been checked.
+                if (!isNew && checkedMessages >= MIN_MESSAGES_TO_CHECK) {
+                    break;
+                }
             }
+
+            runContext.logger().info("Checked {} messages out of {} total", checkedMessages, messageCount);
         } finally {
             if (mailFolder.isOpen()) {
                 try {

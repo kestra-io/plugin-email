@@ -6,6 +6,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.IntStream;
 
 import org.apache.commons.io.IOUtils;
 import org.junit.jupiter.api.BeforeEach;
@@ -29,6 +30,7 @@ class MailReceivedTriggerTest extends AbstractTriggerTest {
 
     private static final String OVERSIZED_ATTACHMENT_FILENAME = "big-report.txt";
     private static final String OVERSIZED_ATTACHMENT_CONTENT = "this content is larger than the configured limit";
+    private static final int BURST_SIZE = 15;
 
     @BeforeEach
     void sendEmailForTest(TestInfo testInfo) throws Exception {
@@ -59,6 +61,10 @@ class MailReceivedTriggerTest extends AbstractTriggerTest {
                 "Email With Oversized Attachment", "sender4@example.com", "Oversized attachment body",
                 OVERSIZED_ATTACHMENT_FILENAME, OVERSIZED_ATTACHMENT_CONTENT.getBytes(StandardCharsets.UTF_8)
             );
+        } else if (testName.equals("everyEmailOfABurstIsReturned")) {
+            for (int i = 1; i <= BURST_SIZE; i++) {
+                sendTestEmail("Burst Email " + i, "sender5@example.com", "Burst email body " + i);
+            }
         } else {
             sendTestEmail("First Email", "sender1@example.com", "First test email body");
         }
@@ -202,5 +208,22 @@ class MailReceivedTriggerTest extends AbstractTriggerTest {
         assertThat("Attachment content type should still be reported", attachment.get("contentType"), notNullValue());
         assertThat("Attachment size should still be reported", attachment.get("size"), notNullValue());
         assertThat("Attachment uri should be null because it exceeds maxAttachmentSize", attachment.get("uri"), nullValue());
+    }
+
+    @Test
+    @EvaluateTrigger(flow = "flows/mail-received-trigger-imap.yaml", triggerId = "imap-mail-trigger")
+    void everyEmailOfABurstIsReturned(Optional<Execution> optionalExecution) {
+        assertThat(optionalExecution.isPresent(), is(true));
+
+        Map<String, Object> triggerVars = optionalExecution.get().getTrigger().getVariables();
+        assertThat("Every email of the burst should be returned", triggerVars.get("total"), is(BURST_SIZE));
+
+        @SuppressWarnings("unchecked")
+        var emails = (List<Map<String, Object>>) triggerVars.get("emails");
+        assertThat(
+            "Emails should be returned oldest first",
+            emails.stream().map(email -> email.get("subject")).toList(),
+            is(IntStream.rangeClosed(1, BURST_SIZE).mapToObj(i -> "Burst Email " + i).toList())
+        );
     }
 }
