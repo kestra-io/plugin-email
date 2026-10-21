@@ -46,6 +46,10 @@ class MailReceivedTriggerTest extends AbstractTriggerTest {
                 "Email With Attachment", "sender2@example.com", "Attachment email body",
                 ATTACHMENT_FILENAME, ATTACHMENT_CONTENT.getBytes(StandardCharsets.UTF_8)
             );
+        } else if (testName.equals("singlePartPdfEmailIsReturnedWithItsAttachment")) {
+            sendTestEmail("Text Email 1", "sender6@example.com", "Text email body 1");
+            sendSinglePartTestEmail("Scanned Invoice", "sender6@example.com", PDF_FILENAME, PDF_CONTENT, "application/pdf");
+            sendTestEmail("Text Email 2", "sender6@example.com", "Text email body 2");
         } else if (testName.equals("duplicateAttachmentFilenamesGetDistinctUris")) {
             sendTestEmailWithAttachments(
                 "Email With Duplicate Attachment Names", "sender3@example.com", "Duplicate attachment names body",
@@ -129,6 +133,38 @@ class MailReceivedTriggerTest extends AbstractTriggerTest {
         URI uri = URI.create((String) attachment.get("uri"));
         String content = IOUtils.toString(storageInterface.get(MAIN_TENANT, null, uri), StandardCharsets.UTF_8);
         assertThat("Stored attachment content should match the sent attachment", content, is(ATTACHMENT_CONTENT));
+    }
+
+    @Test
+    @EvaluateTrigger(flow = "flows/mail-received-trigger-imap.yaml", triggerId = "imap-mail-trigger")
+    void singlePartPdfEmailIsReturnedWithItsAttachment(Optional<Execution> optionalExecution) throws Exception {
+        assertThat(optionalExecution.isPresent(), is(true));
+
+        Map<String, Object> triggerVars = optionalExecution.get().getTrigger().getVariables();
+
+        @SuppressWarnings("unchecked")
+        var emails = (List<Map<String, Object>>) triggerVars.get("emails");
+        assertThat(
+            "Every email should be returned, including the one whose only part is a PDF",
+            emails.stream().map(email -> email.get("subject")).toList(),
+            contains("Text Email 1", "Scanned Invoice", "Text Email 2")
+        );
+
+        var pdfEmail = emails.get(1);
+        assertThat("An email without a text part should have an empty body", pdfEmail.get("body"), is(""));
+
+        @SuppressWarnings("unchecked")
+        var attachments = (List<Map<String, Object>>) pdfEmail.get("attachments");
+        assertThat("The PDF should be returned as the email's attachment", attachments, hasSize(1));
+
+        var attachment = attachments.getFirst();
+        assertThat("Attachment filename should match", attachment.get("filename"), is(PDF_FILENAME));
+        assertThat("Attachment content type should be the PDF one", (String) attachment.get("contentType"), startsWithIgnoringCase("application/pdf"));
+        assertThat("Attachment should have a storage uri", attachment.get("uri"), notNullValue());
+
+        URI uri = URI.create((String) attachment.get("uri"));
+        byte[] content = IOUtils.toByteArray(storageInterface.get(MAIN_TENANT, null, uri));
+        assertThat("Stored attachment content should match the sent PDF", content, is(PDF_CONTENT));
     }
 
     @Test

@@ -292,7 +292,7 @@ public class MailService {
             MimeMultipart multipart = (MimeMultipart) message.getContent();
             return extractTextFromMultipart(multipart);
         }
-        return (String) message.getContent();
+        return message.getContent() instanceof String text ? text : "";
     }
 
     private static String extractTextFromMultipart(MimeMultipart multipart) throws MessagingException, IOException {
@@ -318,6 +318,8 @@ public class MailService {
         if (message.isMimeType("multipart/*")) {
             MimeMultipart multipart = (MimeMultipart) message.getContent();
             extractAttachmentsFromMultipart(multipart, attachments, runContext, maxAttachmentSize);
+        } else if (isAttachment(message)) {
+            attachments.add(extractAttachment(message, attachments.size(), runContext, maxAttachmentSize));
         }
 
         return attachments;
@@ -330,29 +332,36 @@ public class MailService {
         for (int i = 0; i < count; i++) {
             BodyPart bodyPart = multipart.getBodyPart(i);
 
-            if (
-                Part.ATTACHMENT.equalsIgnoreCase(bodyPart.getDisposition()) ||
-                    (bodyPart.getFileName() != null && !bodyPart.getFileName().isEmpty())
-            ) {
-                String filename = sanitizeFilename(bodyPart.getFileName(), attachments.size());
-
-                AttachmentInfo.AttachmentInfoBuilder attachment = AttachmentInfo.builder()
-                    .filename(bodyPart.getFileName())
-                    .contentType(bodyPart.getContentType())
-                    .size(bodyPart.getSize());
-
-                try {
-                    attachment.uri(storeAttachment(bodyPart, filename, runContext, maxAttachmentSize));
-                } catch (IOException | MessagingException e) {
-                    // A single unreadable/unstorable attachment must not fail the whole trigger evaluation.
-                    runContext.logger().warn("Failed to store attachment '{}' in internal storage", filename, e);
-                }
-
-                attachments.add(attachment.build());
+            if (isAttachment(bodyPart)) {
+                attachments.add(extractAttachment(bodyPart, attachments.size(), runContext, maxAttachmentSize));
             } else if (bodyPart.isMimeType("multipart/*")) {
                 extractAttachmentsFromMultipart((MimeMultipart) bodyPart.getContent(), attachments, runContext, maxAttachmentSize);
             }
         }
+    }
+
+    private static boolean isAttachment(Part part) throws MessagingException {
+        return Part.ATTACHMENT.equalsIgnoreCase(part.getDisposition()) ||
+            (part.getFileName() != null && !part.getFileName().isEmpty());
+    }
+
+    private static AttachmentInfo extractAttachment(Part part, int index, RunContext runContext, long maxAttachmentSize)
+        throws MessagingException {
+        String filename = sanitizeFilename(part.getFileName(), index);
+
+        AttachmentInfo.AttachmentInfoBuilder attachment = AttachmentInfo.builder()
+            .filename(part.getFileName())
+            .contentType(part.getContentType())
+            .size(part.getSize());
+
+        try {
+            attachment.uri(storeAttachment(part, filename, runContext, maxAttachmentSize));
+        } catch (IOException | MessagingException e) {
+            // A single unreadable/unstorable attachment must not fail the whole trigger evaluation.
+            runContext.logger().warn("Failed to store attachment '{}' in internal storage", filename, e);
+        }
+
+        return attachment.build();
     }
 
     /**
@@ -381,13 +390,13 @@ public class MailService {
         return sanitized.length() > MAX_FILENAME_LENGTH ? sanitized.substring(0, MAX_FILENAME_LENGTH) : sanitized;
     }
 
-    private static URI storeAttachment(BodyPart bodyPart, String filename, RunContext runContext, long maxAttachmentSize)
+    private static URI storeAttachment(Part part, String filename, RunContext runContext, long maxAttachmentSize)
         throws IOException, MessagingException {
         Path tempFile = runContext.workingDir().createTempFile();
 
         long copied;
         try {
-            copied = copyBounded(bodyPart.getInputStream(), tempFile, maxAttachmentSize);
+            copied = copyBounded(part.getInputStream(), tempFile, maxAttachmentSize);
         } catch (IOException | MessagingException e) {
             // The temp file lives in the RunContext working directory, which for RealTimeTrigger spans the
             // whole IMAP IDLE connection: leaving it behind on failure would accumulate orphan files.

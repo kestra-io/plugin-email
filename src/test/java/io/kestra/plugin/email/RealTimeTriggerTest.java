@@ -93,6 +93,32 @@ class RealTimeTriggerTest extends AbstractTriggerTest {
         assertThat("Stored attachment content should match the sent attachment", content, is(ATTACHMENT_CONTENT));
     }
 
+    @Test
+    void RealTimeTriggerSinglePartPdfEmailIsReturnedWithItsAttachment() throws Exception {
+        var execution = runRealtimeTrigger(
+            "flows/real-time-trigger-imap-pdf.yaml",
+            "real-time-trigger-imap-pdf",
+            REALTIME_TRIGGER_STARTUP_WAIT,
+            () -> sendSinglePartTestEmail("Scanned Invoice", "sender@example.com", PDF_FILENAME, PDF_CONTENT, "application/pdf")
+        );
+
+        Map<String, Object> triggerVars = execution.getTrigger().getVariables();
+        assertThat("Email subject should match", triggerVars.get("subject"), is("Scanned Invoice"));
+        assertThat("An email without a text part should have an empty body", triggerVars.get("body"), is(""));
+
+        @SuppressWarnings("unchecked")
+        var attachments = (List<Map<String, Object>>) triggerVars.get("attachments");
+        assertThat("The PDF should be returned as the email's attachment", attachments, hasSize(1));
+
+        var attachment = attachments.getFirst();
+        assertThat("Attachment filename should match", attachment.get("filename"), is(PDF_FILENAME));
+        assertThat("Attachment should have a storage uri", attachment.get("uri"), notNullValue());
+
+        URI uri = URI.create((String) attachment.get("uri"));
+        byte[] content = IOUtils.toByteArray(storageInterface.get(MAIN_TENANT, null, uri));
+        assertThat("Stored attachment content should match the sent PDF", content, is(PDF_CONTENT));
+    }
+
     private Execution runRealtimeTrigger(String flowPath, String flowId, Duration startupWait) throws Exception {
         return runRealtimeTrigger(
             flowPath, flowId, startupWait,

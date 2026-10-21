@@ -1,5 +1,6 @@
 package io.kestra.plugin.email;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Properties;
 
@@ -24,6 +25,8 @@ public abstract class AbstractTriggerTest extends AbstractEmailTest {
 
     protected static final String ATTACHMENT_FILENAME = "report.txt";
     protected static final String ATTACHMENT_CONTENT = "attachment content";
+    protected static final String PDF_FILENAME = "scan.pdf";
+    protected static final byte[] PDF_CONTENT = "%PDF-1.4\n%\u00e2\u00e3\u00cf\u00d3\n%%EOF\n".getBytes(StandardCharsets.ISO_8859_1);
 
     @RegisterExtension
     static GreenMailExtension greenMail = new GreenMailExtension(
@@ -48,6 +51,20 @@ public abstract class AbstractTriggerTest extends AbstractEmailTest {
         message.addRecipient(Message.RecipientType.TO, new InternetAddress("test@localhost"));
         message.setSubject(subject);
         message.setText(body);
+        greenMail.getUserManager().getUser("test@localhost").deliver(message);
+    }
+
+    protected void sendSinglePartTestEmail(String subject, String from, String filename, byte[] content, String contentType)
+        throws MessagingException {
+        var props = new Properties();
+        var session = Session.getDefaultInstance(props);
+
+        var message = new MimeMessage(session);
+        message.setFrom(new InternetAddress(from));
+        message.addRecipient(Message.RecipientType.TO, new InternetAddress("test@localhost"));
+        message.setSubject(subject);
+        message.setDataHandler(new jakarta.activation.DataHandler(new ByteArrayDataSource(content, contentType)));
+        message.setFileName(filename);
         greenMail.getUserManager().getUser("test@localhost").deliver(message);
     }
 
