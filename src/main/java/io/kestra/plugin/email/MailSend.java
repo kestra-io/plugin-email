@@ -260,7 +260,9 @@ public class MailSend extends Task implements RunnableTask<VoidOutput> {
 
     @Schema(
         title = "Recipients (To)",
-        description = "Comma- or semicolon-delimited list of RFC2822 addresses for primary recipients"
+        description = """
+            Comma- or semicolon-delimited list of RFC2822 addresses for primary recipients, \
+            for example: `alice@example.com; "Smith, Bob" <bob@example.com>`."""
     )
     @NotNull
     @PluginProperty(group = "destination")
@@ -390,9 +392,11 @@ public class MailSend extends Task implements RunnableTask<VoidOutput> {
             .withPlainText(textContent)
             .withReturnReceiptTo();
 
-        String renderedTo = runContext.render(to).as(String.class)
+        var rTo = runContext.render(to).as(String.class)
             .orElseThrow(() -> new IllegalArgumentException("'to' must be set to send an email"));
-        addRecipients(builder, renderedTo, RecipientType.TO);
+        if (addRecipients(builder, rTo, RecipientType.TO) == 0) {
+            throw new IllegalArgumentException("'to' must contain at least one valid recipient address");
+        }
 
         var renderedAttachments = runContext.render(attachments).as(Object.class).orElse("");
         var attachmentsList = getAttachments(renderedAttachments);
@@ -414,28 +418,19 @@ public class MailSend extends Task implements RunnableTask<VoidOutput> {
         return builder.buildEmail();
     }
 
-    private void addRecipients(EmailPopulatingBuilder builder, String addresses, RecipientType type) {
+    private int addRecipients(EmailPopulatingBuilder builder, String addresses, RecipientType type) {
         if (addresses == null || addresses.isBlank()) {
-            return;
+            return 0;
         }
 
-        InternetAddress[] parsedAddresses;
         try {
-            parsedAddresses = InternetAddress.parseHeader(addresses, false);
+            var parsedAddresses = InternetAddress.parseHeader(addresses, false);
+            for (var parsedAddress : parsedAddresses) {
+                builder.withRecipients(new Recipient(parsedAddress.getPersonal(), parsedAddress.getAddress(), type, null));
+            }
+            return parsedAddresses.length;
         } catch (AddressException e) {
-            for (String address : addresses.split("[,;]")) {
-                String trimmed = address.strip();
-                if (!trimmed.isEmpty()) {
-                    builder.withRecipients(new Recipient(null, trimmed, type, null));
-                }
-            }
-            return;
-        }
-
-        for (InternetAddress parsedAddress : parsedAddresses) {
-            if (parsedAddress.getAddress() != null && !parsedAddress.getAddress().isBlank()) {
-                builder.withRecipients(new Recipient(parsedAddress.getPersonal(), parsedAddress.getAddress().strip(), type, null));
-            }
+            throw new IllegalArgumentException(String.format("Invalid %s address: %s", type, addresses), e);
         }
     }
 
