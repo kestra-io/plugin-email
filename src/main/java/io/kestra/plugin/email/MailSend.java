@@ -29,6 +29,8 @@ import io.kestra.core.serializers.JacksonMapper;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.mail.Message.RecipientType;
+import jakarta.mail.internet.AddressException;
+import jakarta.mail.internet.InternetAddress;
 import jakarta.mail.util.ByteArrayDataSource;
 import jakarta.validation.constraints.NotNull;
 import lombok.*;
@@ -258,7 +260,7 @@ public class MailSend extends Task implements RunnableTask<VoidOutput> {
 
     @Schema(
         title = "Recipients (To)",
-        description = "Semicolon-delimited list of RFC2822 addresses for primary recipients"
+        description = "Comma- or semicolon-delimited list of RFC2822 addresses for primary recipients"
     )
     @NotNull
     @PluginProperty(group = "destination")
@@ -266,14 +268,14 @@ public class MailSend extends Task implements RunnableTask<VoidOutput> {
 
     @Schema(
         title = "CC recipients",
-        description = "Optional semicolon-delimited RFC2822 addresses for carbon copy recipients"
+        description = "Optional comma- or semicolon-delimited RFC2822 addresses for carbon copy recipients"
     )
     @PluginProperty(group = "advanced")
     protected Property<String> cc;
 
     @Schema(
         title = "BCC recipients",
-        description = "Optional semicolon-delimited RFC2822 addresses for blind carbon copy recipients"
+        description = "Optional comma- or semicolon-delimited RFC2822 addresses for blind carbon copy recipients"
     )
     @PluginProperty(group = "advanced")
     protected Property<String> bcc;
@@ -381,14 +383,16 @@ public class MailSend extends Task implements RunnableTask<VoidOutput> {
             .orElse("Please view this email in a modern email client");
 
         EmailPopulatingBuilder builder = EmailBuilder.startingBlank()
-            .withRecipients(new Recipient(null, runContext.render(to).as(String.class)
-                .orElseThrow(() -> new IllegalArgumentException("'to' must be set to send an email")), RecipientType.TO, null))
             .from(runContext.render(from).as(String.class)
                 .orElseThrow(() -> new IllegalArgumentException("'from' must be set to send an email")))
             .withSubject(runContext.render(subject).as(String.class).orElse(null))
             .withHTMLText(htmlContent)
             .withPlainText(textContent)
             .withReturnReceiptTo();
+
+        String renderedTo = runContext.render(to).as(String.class)
+            .orElseThrow(() -> new IllegalArgumentException("'to' must be set to send an email"));
+        addRecipients(builder, renderedTo, RecipientType.TO);
 
         var renderedAttachments = runContext.render(attachments).as(Object.class).orElse("");
         var attachmentsList = getAttachments(renderedAttachments);
@@ -404,10 +408,35 @@ public class MailSend extends Task implements RunnableTask<VoidOutput> {
             builder.withEmbeddedImages(this.attachmentResources(embeddedImagesList, runContext));
         }
 
-        runContext.render(cc).as(String.class).ifPresent(address -> builder.withRecipients(new Recipient(null, address, RecipientType.CC, null)));
-        runContext.render(bcc).as(String.class).ifPresent(address -> builder.withRecipients(new Recipient(null, address, RecipientType.BCC, null)));
+        runContext.render(cc).as(String.class).ifPresent(address -> addRecipients(builder, address, RecipientType.CC));
+        runContext.render(bcc).as(String.class).ifPresent(address -> addRecipients(builder, address, RecipientType.BCC));
 
         return builder.buildEmail();
+    }
+
+    private void addRecipients(EmailPopulatingBuilder builder, String addresses, RecipientType type) {
+        if (addresses == null || addresses.isBlank()) {
+            return;
+        }
+
+        InternetAddress[] parsedAddresses;
+        try {
+            parsedAddresses = InternetAddress.parseHeader(addresses, false);
+        } catch (AddressException e) {
+            for (String address : addresses.split("[,;]")) {
+                String trimmed = address.strip();
+                if (!trimmed.isEmpty()) {
+                    builder.withRecipients(new Recipient(null, trimmed, type, null));
+                }
+            }
+            return;
+        }
+
+        for (InternetAddress parsedAddress : parsedAddresses) {
+            if (parsedAddress.getAddress() != null && !parsedAddress.getAddress().isBlank()) {
+                builder.withRecipients(new Recipient(parsedAddress.getPersonal(), parsedAddress.getAddress().strip(), type, null));
+            }
+        }
     }
 
     private List<AttachmentResource> attachmentResources(List<Attachment> attachments, RunContext runContext) throws Exception {

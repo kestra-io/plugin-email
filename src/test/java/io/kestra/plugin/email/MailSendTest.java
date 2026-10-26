@@ -127,6 +127,98 @@ public class MailSendTest {
     }
 
     @Test
+    void shouldPopulateMultipleRecipientsWhenSeparatedBySemicolon() throws Exception {
+        RunContext runContext = getRunContext();
+
+        MailSend mailSend = MailSend.builder()
+            .from(Property.ofValue(FROM))
+            .to(Property.ofValue("user1@mail.com;user2@mail.com; user3@mail.com"))
+            .cc(Property.ofValue("cc1@mail.com; cc2@mail.com"))
+            .bcc(Property.ofValue("bcc1@mail.com; bcc2@mail.com"))
+            .subject(Property.ofValue(SUBJECT))
+            .build();
+
+        var builtEmail = mailSend.buildEmail(runContext);
+
+        org.assertj.core.api.Assertions.assertThat(builtEmail.getToRecipients())
+            .extracting(org.simplejavamail.api.email.Recipient::getAddress)
+            .containsExactly("user1@mail.com", "user2@mail.com", "user3@mail.com");
+        org.assertj.core.api.Assertions.assertThat(builtEmail.getCcRecipients())
+            .extracting(org.simplejavamail.api.email.Recipient::getAddress)
+            .containsExactly("cc1@mail.com", "cc2@mail.com");
+        org.assertj.core.api.Assertions.assertThat(builtEmail.getBccRecipients())
+            .extracting(org.simplejavamail.api.email.Recipient::getAddress)
+            .containsExactly("bcc1@mail.com", "bcc2@mail.com");
+    }
+
+    @Test
+    void shouldPopulateMultipleRecipientsWhenSeparatedByComma() throws Exception {
+        RunContext runContext = getRunContext();
+
+        MailSend mailSend = MailSend.builder()
+            .from(Property.ofValue(FROM))
+            .to(Property.ofValue("user1@mail.com,user2@mail.com, user3@mail.com"))
+            .cc(Property.ofValue("cc1@mail.com, cc2@mail.com"))
+            .bcc(Property.ofValue("bcc1@mail.com, bcc2@mail.com"))
+            .subject(Property.ofValue(SUBJECT))
+            .build();
+
+        var builtEmail = mailSend.buildEmail(runContext);
+
+        org.assertj.core.api.Assertions.assertThat(builtEmail.getToRecipients())
+            .extracting(org.simplejavamail.api.email.Recipient::getAddress)
+            .containsExactly("user1@mail.com", "user2@mail.com", "user3@mail.com");
+        org.assertj.core.api.Assertions.assertThat(builtEmail.getCcRecipients())
+            .extracting(org.simplejavamail.api.email.Recipient::getAddress)
+            .containsExactly("cc1@mail.com", "cc2@mail.com");
+        org.assertj.core.api.Assertions.assertThat(builtEmail.getBccRecipients())
+            .extracting(org.simplejavamail.api.email.Recipient::getAddress)
+            .containsExactly("bcc1@mail.com", "bcc2@mail.com");
+    }
+
+    @Test
+    void shouldPopulateNamedRecipientsWhenUsingRfc2822Format() throws Exception {
+        RunContext runContext = getRunContext();
+
+        MailSend mailSend = MailSend.builder()
+            .from(Property.ofValue(FROM))
+            .to(Property.ofValue("\"Smith, Alice\" <alice@example.com>; Bob <bob@example.com>"))
+            .subject(Property.ofValue(SUBJECT))
+            .build();
+
+        var builtEmail = mailSend.buildEmail(runContext);
+
+        org.assertj.core.api.Assertions.assertThat(builtEmail.getToRecipients())
+            .extracting(org.simplejavamail.api.email.Recipient::getName, org.simplejavamail.api.email.Recipient::getAddress)
+            .containsExactly(
+                org.assertj.core.groups.Tuple.tuple("Smith, Alice", "alice@example.com"),
+                org.assertj.core.groups.Tuple.tuple("Bob", "bob@example.com")
+            );
+    }
+
+    @Test
+    void shouldSendEmailToMultipleRecipients() throws Exception {
+        RunContext runContext = getRunContext();
+
+        MailSend mailSend = MailSend.builder()
+            .host(Property.ofValue("localhost"))
+            .port(Property.ofValue(greenMail.getSmtp().getPort()))
+            .from(Property.ofValue(FROM))
+            .to(Property.ofValue("to1@mail.com; to2@mail.com"))
+            .cc(Property.ofValue("cc1@mail.com, cc2@mail.com"))
+            .bcc(Property.ofValue("bcc1@mail.com; bcc2@mail.com"))
+            .subject(Property.ofValue(SUBJECT))
+            .plainTextContent(Property.ofValue("multi-recipient test"))
+            .transportStrategy(Property.ofValue(TransportStrategy.SMTP))
+            .build();
+
+        mailSend.run(runContext);
+
+        MimeMessage[] receivedMessages = greenMail.getReceivedMessages();
+        org.assertj.core.api.Assertions.assertThat(receivedMessages).hasSize(6);
+    }
+
+    @Test
     @DisplayName("Send email with html and plain text contents")
     void sendEmail() throws Exception {
         RunContext runContext = getRunContext();
