@@ -42,11 +42,11 @@ import jakarta.mail.internet.MimeMessage;
 import jakarta.mail.internet.MimeMultipart;
 
 import static io.kestra.core.tenant.TenantService.MAIN_TENANT;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.groups.Tuple.tuple;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.groups.Tuple.tuple;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hamcrest.Matchers.is;
 
 @KestraTest
@@ -133,15 +133,15 @@ public class MailSendTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {";", ",", "; ", ", "})
+    @ValueSource(strings = { ";", ",", "; ", ", " })
     void shouldPopulateMultipleRecipients(String delimiter) throws Exception {
-        RunContext runContext = getRunContext();
+        var runContext = getRunContext();
 
-        MailSend mailSend = MailSend.builder()
+        var mailSend = MailSend.builder()
             .from(Property.ofValue(FROM))
-            .to(Property.ofValue(String.format("user1@mail.com%suser2@mail.com%suser3@mail.com", delimiter, delimiter)))
-            .cc(Property.ofValue(String.format("cc1@mail.com%scc2@mail.com", delimiter)))
-            .bcc(Property.ofValue(String.format("bcc1@mail.com%sbcc2@mail.com", delimiter)))
+            .to(Property.ofValue("user1@mail.com%suser2@mail.com%suser3@mail.com".formatted(delimiter, delimiter)))
+            .cc(Property.ofValue("cc1@mail.com%scc2@mail.com".formatted(delimiter)))
+            .bcc(Property.ofValue("bcc1@mail.com%sbcc2@mail.com".formatted(delimiter)))
             .subject(Property.ofValue(SUBJECT))
             .build();
 
@@ -160,9 +160,9 @@ public class MailSendTest {
 
     @Test
     void shouldPopulateNamedRecipientsWhenUsingRfc2822Format() throws Exception {
-        RunContext runContext = getRunContext();
+        var runContext = getRunContext();
 
-        MailSend mailSend = MailSend.builder()
+        var mailSend = MailSend.builder()
             .from(Property.ofValue(FROM))
             .to(Property.ofValue("\"Smith, Alice\" <alice@example.com>; Bob <bob@example.com>"))
             .subject(Property.ofValue(SUBJECT))
@@ -179,25 +179,26 @@ public class MailSendTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"", "   ", ";", " ; ", ",", " , "})
+    @ValueSource(strings = { "", "   ", ";", " ; ", ",", " , " })
     void shouldThrowExceptionWhenToContainsNoRecipient(String emptyTo) {
-        RunContext runContext = getRunContext();
+        var runContext = getRunContext();
 
-        MailSend mailSend = MailSend.builder()
+        var mailSend = MailSend.builder()
             .from(Property.ofValue(FROM))
             .to(Property.ofValue(emptyTo))
             .subject(Property.ofValue(SUBJECT))
             .build();
 
         assertThatThrownBy(() -> mailSend.buildEmail(runContext))
-            .isInstanceOf(IllegalArgumentException.class);
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("with no recipient address");
     }
 
     @Test
     void shouldSendEmailToMultipleRecipients() throws Exception {
-        RunContext runContext = getRunContext();
+        var runContext = getRunContext();
 
-        MailSend mailSend = MailSend.builder()
+        var mailSend = MailSend.builder()
             .host(Property.ofValue("localhost"))
             .port(Property.ofValue(greenMail.getSmtp().getPort()))
             .from(Property.ofValue(FROM))
@@ -211,7 +212,7 @@ public class MailSendTest {
 
         mailSend.run(runContext);
 
-        MimeMessage[] receivedMessages = greenMail.getReceivedMessages();
+        var receivedMessages = greenMail.getReceivedMessages();
         assertThat(receivedMessages).hasSize(6);
     }
 

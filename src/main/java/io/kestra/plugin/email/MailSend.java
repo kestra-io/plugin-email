@@ -20,6 +20,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 
 import io.kestra.core.models.annotations.Example;
 import io.kestra.core.models.annotations.Plugin;
+import io.kestra.core.models.annotations.PluginProperty;
 import io.kestra.core.models.property.Property;
 import io.kestra.core.models.tasks.RunnableTask;
 import io.kestra.core.models.tasks.Task;
@@ -37,7 +38,6 @@ import lombok.*;
 import lombok.experimental.SuperBuilder;
 
 import static io.kestra.core.utils.Rethrow.throwFunction;
-import io.kestra.core.models.annotations.PluginProperty;
 
 @SuperBuilder
 @ToString
@@ -270,14 +270,16 @@ public class MailSend extends Task implements RunnableTask<VoidOutput> {
 
     @Schema(
         title = "CC recipients",
-        description = "Optional comma- or semicolon-delimited RFC2822 addresses for carbon copy recipients"
+        description = """
+            Optional comma- or semicolon-delimited RFC2822 addresses for carbon copy recipients."""
     )
     @PluginProperty(group = "advanced")
     protected Property<String> cc;
 
     @Schema(
         title = "BCC recipients",
-        description = "Optional comma- or semicolon-delimited RFC2822 addresses for blind carbon copy recipients"
+        description = """
+            Optional comma- or semicolon-delimited RFC2822 addresses for blind carbon copy recipients."""
     )
     @PluginProperty(group = "advanced")
     protected Property<String> bcc;
@@ -385,8 +387,10 @@ public class MailSend extends Task implements RunnableTask<VoidOutput> {
             .orElse("Please view this email in a modern email client");
 
         EmailPopulatingBuilder builder = EmailBuilder.startingBlank()
-            .from(runContext.render(from).as(String.class)
-                .orElseThrow(() -> new IllegalArgumentException("'from' must be set to send an email")))
+            .from(
+                runContext.render(from).as(String.class)
+                    .orElseThrow(() -> new IllegalArgumentException("'from' must be set to send an email"))
+            )
             .withSubject(runContext.render(subject).as(String.class).orElse(null))
             .withHTMLText(htmlContent)
             .withPlainText(textContent)
@@ -395,7 +399,7 @@ public class MailSend extends Task implements RunnableTask<VoidOutput> {
         var rTo = runContext.render(to).as(String.class)
             .orElseThrow(() -> new IllegalArgumentException("'to' must be set to send an email"));
         if (addRecipients(builder, rTo, RecipientType.TO) == 0) {
-            throw new IllegalArgumentException("'to' must contain at least one valid recipient address");
+            throw new IllegalArgumentException("'to' rendered to '%s' with no recipient address, set at least one address separated by ',' or ';'".formatted(rTo));
         }
 
         var renderedAttachments = runContext.render(attachments).as(Object.class).orElse("");
@@ -419,10 +423,6 @@ public class MailSend extends Task implements RunnableTask<VoidOutput> {
     }
 
     private int addRecipients(EmailPopulatingBuilder builder, String addresses, RecipientType type) {
-        if (addresses == null || addresses.isBlank()) {
-            return 0;
-        }
-
         try {
             var parsedAddresses = InternetAddress.parseHeader(addresses, false);
             for (var parsedAddress : parsedAddresses) {
@@ -430,7 +430,7 @@ public class MailSend extends Task implements RunnableTask<VoidOutput> {
             }
             return parsedAddresses.length;
         } catch (AddressException e) {
-            throw new IllegalArgumentException(String.format("Invalid %s address: %s", type, addresses), e);
+            throw new IllegalArgumentException("Invalid %s address: %s".formatted(type, addresses), e);
         }
     }
 
