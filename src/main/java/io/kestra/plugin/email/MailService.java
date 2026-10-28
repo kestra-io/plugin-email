@@ -5,6 +5,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.PrintStream;
 import java.net.URI;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -21,9 +22,12 @@ import io.kestra.core.utils.IdUtils;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.mail.*;
+import jakarta.mail.internet.ContentType;
 import jakarta.mail.internet.InternetAddress;
 import jakarta.mail.internet.MimeMessage;
 import jakarta.mail.internet.MimeMultipart;
+import jakarta.mail.internet.MimeUtility;
+import jakarta.mail.internet.ParseException;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.experimental.UtilityClass;
@@ -292,7 +296,28 @@ public class MailService {
             MimeMultipart multipart = (MimeMultipart) message.getContent();
             return extractTextFromMultipart(multipart);
         }
-        return message.getContent() instanceof String text ? text : "";
+        if (message.getContent() instanceof String text) {
+            return text;
+        }
+        // Types without a content handler (e.g. text/calendar) come back as a raw stream.
+        if (message.isMimeType("text/*")) {
+            try (var in = message.getInputStream()) {
+                return new String(in.readAllBytes(), charsetOf(message));
+            }
+        }
+        return "";
+    }
+
+    private static Charset charsetOf(Part part) {
+        try {
+            var charset = new ContentType(part.getContentType()).getParameter("charset");
+            if (charset != null) {
+                return Charset.forName(MimeUtility.javaCharset(charset));
+            }
+        } catch (MessagingException | IllegalArgumentException e) {
+            // Unknown or malformed charset: fall back to UTF-8 rather than losing the body.
+        }
+        return StandardCharsets.UTF_8;
     }
 
     private static String extractTextFromMultipart(MimeMultipart multipart) throws MessagingException, IOException {
@@ -318,7 +343,7 @@ public class MailService {
         if (message.isMimeType("multipart/*")) {
             MimeMultipart multipart = (MimeMultipart) message.getContent();
             extractAttachmentsFromMultipart(multipart, attachments, runContext, maxAttachmentSize);
-        } else if (isAttachment(message)) {
+        } else if (isAttachment(message) || !(message.getContent() instanceof String)) {
             attachments.add(extractAttachment(message, attachments.size(), runContext, maxAttachmentSize));
         }
 
@@ -347,9 +372,9 @@ public class MailService {
 
     private static AttachmentInfo extractAttachment(Part part, int index, RunContext runContext, long maxAttachmentSize)
         throws MessagingException {
-        String filename = sanitizeFilename(part.getFileName(), index);
+        var filename = sanitizeFilename(part.getFileName(), index);
 
-        AttachmentInfo.AttachmentInfoBuilder attachment = AttachmentInfo.builder()
+        var attachment = AttachmentInfo.builder()
             .filename(part.getFileName())
             .contentType(part.getContentType())
             .size(part.getSize());

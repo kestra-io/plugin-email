@@ -50,6 +50,13 @@ class MailReceivedTriggerTest extends AbstractTriggerTest {
             sendTestEmail("Text Email 1", "sender6@example.com", "Text email body 1");
             sendSinglePartTestEmail("Scanned Invoice", "sender6@example.com", PDF_FILENAME, PDF_CONTENT, "application/pdf");
             sendTestEmail("Text Email 2", "sender6@example.com", "Text email body 2");
+        } else if (testName.equals("singlePartCalendarEmailWithoutFilenameIsDecodedAndAttached")) {
+            sendSinglePartTestEmail(
+                "Team Invite", "sender7@example.com", null, ICS_CONTENT.getBytes(StandardCharsets.UTF_8),
+                "text/calendar; charset=UTF-8; method=REQUEST"
+            );
+        } else if (testName.equals("singlePartInlineImageWithoutFilenameIsReturnedAsAttachment")) {
+            sendSinglePartTestEmail("Inline Image", "sender8@example.com", null, PNG_CONTENT, "image/png");
         } else if (testName.equals("duplicateAttachmentFilenamesGetDistinctUris")) {
             sendTestEmailWithAttachments(
                 "Email With Duplicate Attachment Names", "sender3@example.com", "Duplicate attachment names body",
@@ -140,7 +147,7 @@ class MailReceivedTriggerTest extends AbstractTriggerTest {
     void singlePartPdfEmailIsReturnedWithItsAttachment(Optional<Execution> optionalExecution) throws Exception {
         assertThat(optionalExecution.isPresent(), is(true));
 
-        Map<String, Object> triggerVars = optionalExecution.get().getTrigger().getVariables();
+        var triggerVars = optionalExecution.get().getTrigger().getVariables();
 
         @SuppressWarnings("unchecked")
         var emails = (List<Map<String, Object>>) triggerVars.get("emails");
@@ -162,9 +169,64 @@ class MailReceivedTriggerTest extends AbstractTriggerTest {
         assertThat("Attachment content type should be the PDF one", (String) attachment.get("contentType"), startsWithIgnoringCase("application/pdf"));
         assertThat("Attachment should have a storage uri", attachment.get("uri"), notNullValue());
 
-        URI uri = URI.create((String) attachment.get("uri"));
-        byte[] content = IOUtils.toByteArray(storageInterface.get(MAIN_TENANT, null, uri));
+        var uri = URI.create((String) attachment.get("uri"));
+        var content = IOUtils.toByteArray(storageInterface.get(MAIN_TENANT, null, uri));
         assertThat("Stored attachment content should match the sent PDF", content, is(PDF_CONTENT));
+    }
+
+    @Test
+    @EvaluateTrigger(flow = "flows/mail-received-trigger-imap.yaml", triggerId = "imap-mail-trigger")
+    void singlePartCalendarEmailWithoutFilenameIsDecodedAndAttached(Optional<Execution> optionalExecution) throws Exception {
+        assertThat(optionalExecution.isPresent(), is(true));
+
+        var triggerVars = optionalExecution.get().getTrigger().getVariables();
+
+        @SuppressWarnings("unchecked")
+        var emails = (List<Map<String, Object>>) triggerVars.get("emails");
+        assertThat(emails, hasSize(1));
+
+        var invite = emails.getFirst();
+        assertThat("The calendar text should be decoded as the body", invite.get("body"), is(ICS_CONTENT));
+
+        @SuppressWarnings("unchecked")
+        var attachments = (List<Map<String, Object>>) invite.get("attachments");
+        assertThat("The invite should also be returned as an attachment", attachments, hasSize(1));
+
+        var attachment = attachments.getFirst();
+        assertThat("Attachment content type should be the calendar one", (String) attachment.get("contentType"), startsWithIgnoringCase("text/calendar"));
+        assertThat("Attachment should have a storage uri", attachment.get("uri"), notNullValue());
+
+        var uri = URI.create((String) attachment.get("uri"));
+        var content = IOUtils.toByteArray(storageInterface.get(MAIN_TENANT, null, uri));
+        assertThat("Stored attachment content should match the sent invite", content, is(ICS_CONTENT.getBytes(StandardCharsets.UTF_8)));
+    }
+
+    @Test
+    @EvaluateTrigger(flow = "flows/mail-received-trigger-imap.yaml", triggerId = "imap-mail-trigger")
+    void singlePartInlineImageWithoutFilenameIsReturnedAsAttachment(Optional<Execution> optionalExecution) throws Exception {
+        assertThat(optionalExecution.isPresent(), is(true));
+
+        var triggerVars = optionalExecution.get().getTrigger().getVariables();
+
+        @SuppressWarnings("unchecked")
+        var emails = (List<Map<String, Object>>) triggerVars.get("emails");
+        assertThat(emails, hasSize(1));
+
+        var imageEmail = emails.getFirst();
+        assertThat("An image-only email should have an empty body", imageEmail.get("body"), is(""));
+
+        @SuppressWarnings("unchecked")
+        var attachments = (List<Map<String, Object>>) imageEmail.get("attachments");
+        assertThat("The image should be returned as the email's attachment", attachments, hasSize(1));
+
+        var attachment = attachments.getFirst();
+        assertThat("Attachment content type should be the image one", (String) attachment.get("contentType"), startsWithIgnoringCase("image/png"));
+        assertThat("Attachment should have a storage uri", attachment.get("uri"), notNullValue());
+        assertThat("Stored file should fall back to a generated name", ((String) attachment.get("uri")), containsString("attachment-0"));
+
+        var uri = URI.create((String) attachment.get("uri"));
+        var content = IOUtils.toByteArray(storageInterface.get(MAIN_TENANT, null, uri));
+        assertThat("Stored attachment content should match the sent image", content, is(PNG_CONTENT));
     }
 
     @Test
