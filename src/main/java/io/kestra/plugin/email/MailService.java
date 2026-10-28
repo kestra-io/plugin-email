@@ -27,7 +27,6 @@ import jakarta.mail.internet.InternetAddress;
 import jakarta.mail.internet.MimeMessage;
 import jakarta.mail.internet.MimeMultipart;
 import jakarta.mail.internet.MimeUtility;
-import jakarta.mail.internet.ParseException;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.experimental.UtilityClass;
