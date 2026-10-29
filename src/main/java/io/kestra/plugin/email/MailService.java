@@ -54,7 +54,7 @@ public class MailService {
         private final List<EmailData> emails;
     }
 
-    @Builder
+    @Builder(toBuilder = true)
     @Getter
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class EmailData implements io.kestra.core.models.tasks.Output {
@@ -95,7 +95,7 @@ public class MailService {
         private final List<AttachmentInfo> attachments;
     }
 
-    @Builder
+    @Builder(toBuilder = true)
     @Getter
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class AttachmentInfo {
@@ -118,46 +118,33 @@ public class MailService {
 
     static EmailData moveAttachmentsToExecution(EmailData emailData, RunContext runContext, Execution execution)
         throws IOException {
-        List<AttachmentInfo> attachments = new ArrayList<>();
+        var attachments = new ArrayList<AttachmentInfo>();
 
         for (AttachmentInfo attachment : emailData.getAttachments()) {
-            URI uri = attachment.getUri();
+            var uri = attachment.getUri();
             if (uri != null) {
-                String sourcePrefix = "/executions/" + runContext.getTriggerExecutionId() + "/";
-                String targetPrefix = "/executions/" + execution.getId() + "/";
-                String target = uri.toString().replace(sourcePrefix, targetPrefix);
-                if (target.equals(uri.toString())) {
-                    throw new IOException("Attachment URI is not scoped to the realtime trigger execution: " + uri);
+                var sourcePrefix = "/executions/" + runContext.getTriggerExecutionId() + "/";
+                var targetPrefix = "/executions/" + execution.getId() + "/";
+                var target = uri.toString().replace(sourcePrefix, targetPrefix);
+                try {
+                    if (target.equals(uri.toString())) {
+                        throw new IOException("Attachment URI is not scoped to the realtime trigger execution: " + uri);
+                    }
+                    var targetUri = URI.create(target);
+                    try (var inputStream = runContext.storage().getFile(uri)) {
+                        runContext.storage().putFile(inputStream, targetUri);
+                    }
+                    runContext.storage().deleteFile(uri);
+                    uri = targetUri;
+                } catch (IOException e) {
+                    runContext.logger().warn("Failed to move attachment '{}' to the realtime execution", attachment.getFilename(), e);
                 }
-                URI targetUri = URI.create(target);
-                try (InputStream inputStream = runContext.storage().getFile(uri)) {
-                    runContext.storage().putFile(inputStream, targetUri);
-                }
-                runContext.storage().deleteFile(uri);
-                uri = targetUri;
             }
 
-            attachments.add(
-                AttachmentInfo.builder()
-                    .filename(attachment.getFilename())
-                    .contentType(attachment.getContentType())
-                    .size(attachment.getSize())
-                    .uri(uri)
-                    .build()
-            );
+            attachments.add(attachment.toBuilder().uri(uri).build());
         }
 
-        return EmailData.builder()
-            .subject(emailData.getSubject())
-            .from(emailData.getFrom())
-            .to(emailData.getTo())
-            .cc(emailData.getCc())
-            .bcc(emailData.getBcc())
-            .date(emailData.getDate())
-            .body(emailData.getBody())
-            .messageId(emailData.getMessageId())
-            .attachments(attachments)
-            .build();
+        return emailData.toBuilder().attachments(attachments).build();
     }
 
     @Builder

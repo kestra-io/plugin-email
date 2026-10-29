@@ -28,10 +28,13 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 @KestraTest(startRunner = true, startScheduler = true)
 class RealTimeTriggerTest extends AbstractTriggerTest {
     private static final Duration REALTIME_TRIGGER_STARTUP_WAIT = Duration.ofSeconds(5);
+    private static final String OVERSIZED_ATTACHMENT_FILENAME = "big-report.txt";
+    private static final byte[] OVERSIZED_ATTACHMENT_CONTENT = "this content is larger than the configured limit".getBytes(StandardCharsets.UTF_8);
 
     @Inject
     private LocalFlowRepositoryLoader repositoryLoader;
@@ -123,6 +126,27 @@ class RealTimeTriggerTest extends AbstractTriggerTest {
         URI uri = URI.create((String) attachment.get("uri"));
         byte[] content = IOUtils.toByteArray(storageInterface.get(MAIN_TENANT, null, uri));
         assertThat("Stored attachment content should match the sent PDF", content, is(PDF_CONTENT));
+    }
+
+    @Test
+    void RealTimeTriggerOversizedAttachmentDoesNotPreventExecution() throws Exception {
+        var execution = runRealtimeTrigger(
+            "flows/real-time-trigger-imap-max-attachment-size.yaml",
+            "real-time-trigger-imap-max-attachment-size",
+            REALTIME_TRIGGER_STARTUP_WAIT,
+            () -> sendTestEmailWithAttachment(
+                "Email With Oversized Attachment", "sender@example.com", "Oversized attachment email body",
+                OVERSIZED_ATTACHMENT_FILENAME, OVERSIZED_ATTACHMENT_CONTENT
+            )
+        );
+
+        Map<String, Object> triggerVars = execution.getTrigger().getVariables();
+        assertThat("Execution should contain the oversized email", triggerVars.get("subject"), is("Email With Oversized Attachment"));
+
+        @SuppressWarnings("unchecked")
+        var attachments = (List<Map<String, Object>>) triggerVars.get("attachments");
+        assertThat("Should have exactly one attachment", attachments, hasSize(1));
+        assertThat("Oversized attachment should keep a null URI", attachments.getFirst().get("uri"), nullValue());
     }
 
     private Execution runRealtimeTrigger(String flowPath, String flowId, Duration startupWait) throws Exception {

@@ -139,9 +139,9 @@ public class RealTimeTrigger extends AbstractMailTrigger
                     "Real-time trigger: New email from '{}' with subject '{}'",
                     emailData.getFrom(), emailData.getSubject()
                 );
-                Execution execution = TriggerService.generateRealtimeExecution(this, conditionContext, context, emailData);
+                var execution = TriggerService.generateRealtimeExecution(this, conditionContext, context, emailData);
                 try {
-                    MailService.EmailData relocatedEmailData = MailService.moveAttachmentsToExecution(
+                    var relocatedEmailData = MailService.moveAttachmentsToExecution(
                         emailData, runContext, execution
                     );
                     return execution.withTrigger(
