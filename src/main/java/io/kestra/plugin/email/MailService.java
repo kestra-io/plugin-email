@@ -17,6 +17,7 @@ import java.util.regex.Pattern;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 import io.kestra.core.models.annotations.PluginProperty;
+import io.kestra.core.models.executions.Execution;
 import io.kestra.core.runners.RunContext;
 import io.kestra.core.utils.IdUtils;
 
@@ -113,6 +114,50 @@ public class MailService {
         @Schema(title = "Attachment URI", description = "URI of the attachment stored in Kestra internal storage")
         @PluginProperty(group = "advanced")
         private final URI uri;
+    }
+
+    static EmailData moveAttachmentsToExecution(EmailData emailData, RunContext runContext, Execution execution)
+        throws IOException {
+        List<AttachmentInfo> attachments = new ArrayList<>();
+
+        for (AttachmentInfo attachment : emailData.getAttachments()) {
+            URI uri = attachment.getUri();
+            if (uri != null) {
+                String sourcePrefix = "/executions/" + runContext.getTriggerExecutionId() + "/";
+                String targetPrefix = "/executions/" + execution.getId() + "/";
+                String target = uri.toString().replace(sourcePrefix, targetPrefix);
+                if (target.equals(uri.toString())) {
+                    throw new IOException("Attachment URI is not scoped to the realtime trigger execution: " + uri);
+                }
+                URI targetUri = URI.create(target);
+                try (InputStream inputStream = runContext.storage().getFile(uri)) {
+                    runContext.storage().putFile(inputStream, targetUri);
+                }
+                runContext.storage().deleteFile(uri);
+                uri = targetUri;
+            }
+
+            attachments.add(
+                AttachmentInfo.builder()
+                    .filename(attachment.getFilename())
+                    .contentType(attachment.getContentType())
+                    .size(attachment.getSize())
+                    .uri(uri)
+                    .build()
+            );
+        }
+
+        return EmailData.builder()
+            .subject(emailData.getSubject())
+            .from(emailData.getFrom())
+            .to(emailData.getTo())
+            .cc(emailData.getCc())
+            .bcc(emailData.getBcc())
+            .date(emailData.getDate())
+            .body(emailData.getBody())
+            .messageId(emailData.getMessageId())
+            .attachments(attachments)
+            .build();
     }
 
     @Builder

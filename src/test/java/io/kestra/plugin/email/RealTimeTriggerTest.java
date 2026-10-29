@@ -24,6 +24,7 @@ import reactor.core.publisher.Flux;
 
 import static io.kestra.core.tenant.TenantService.MAIN_TENANT;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -89,6 +90,11 @@ class RealTimeTriggerTest extends AbstractTriggerTest {
         assertThat("Attachment should have a storage uri", attachment.get("uri"), notNullValue());
 
         URI uri = URI.create((String) attachment.get("uri"));
+        assertThat(
+            "Attachment should be scoped to the started execution",
+            uri.getPath(),
+            is(containsString("/executions/" + execution.getId() + "/"))
+        );
         String content = IOUtils.toString(storageInterface.get(MAIN_TENANT, null, uri), StandardCharsets.UTF_8);
         assertThat("Stored attachment content should match the sent attachment", content, is(ATTACHMENT_CONTENT));
     }
