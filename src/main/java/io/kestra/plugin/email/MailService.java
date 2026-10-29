@@ -130,16 +130,18 @@ public class MailService {
         public final Long maxAttachmentSize;
     }
 
-    // CWE-532 / OWASP A09:2021: lines from the JavaMail protocol transcript that carry
-    // authentication material and must never reach stdout or the application logger.
+    // CWE-532 / OWASP A09:2021: lines from the JavaMail protocol transcript that
+    // carry
+    // authentication material and must never reach stdout or the application
+    // logger.
     private static final Pattern SENSITIVE_DEBUG_LINE = Pattern.compile(
-        "^(AUTH|AUTHENTICATE)\\b.*|^(\\+OK|\\+|.*[Pp]assword).*|^[A-Za-z0-9+/=]{20,}$"
-    );
+            "^(AUTH|AUTHENTICATE)\\b.*|^(\\+OK|\\+|.*[Pp]assword).*|^[A-Za-z0-9+/=]{20,}$");
 
     private static final Pattern UNSAFE_FILENAME_CHARS = Pattern.compile("[^a-zA-Z0-9._-]");
 
     /**
-     * Default cap applied to a single attachment before it is stored in internal storage: 25MB.
+     * Default cap applied to a single attachment before it is stored in internal
+     * storage: 25MB.
      */
     public static final long DEFAULT_MAX_ATTACHMENT_SIZE = 25L * 1024 * 1024;
 
@@ -148,7 +150,7 @@ public class MailService {
     private static final int MIN_MESSAGES_TO_CHECK = 10;
 
     public static Properties setupMailProperties(String protocol, String host, Integer port, Boolean ssl,
-        Boolean trustAllCertificates, RunContext runContext) {
+            Boolean trustAllCertificates, RunContext runContext) {
         Properties props = new Properties();
         String protocolName = getProtocolName(protocol, ssl);
 
@@ -163,30 +165,37 @@ public class MailService {
         }
 
         if (trustAllCertificates) {
-            // CWE-295 / OWASP A02:2025: disabling certificate and hostname validation removes
-            // all protection against a man-in-the-middle attack on this connection. This option
-            // must only ever be used for local/testing setups against a known, trusted host.
+            // CWE-295 / OWASP A02:2025: disabling certificate and hostname validation
+            // removes
+            // all protection against a man-in-the-middle attack on this connection. This
+            // option
+            // must only ever be used for local/testing setups against a known, trusted
+            // host.
             runContext.logger().warn(
-                "trustAllCertificates is enabled for {}:{} — TLS certificate and hostname " +
-                    "validation is disabled. This makes the connection vulnerable to " +
-                    "man-in-the-middle attacks and must never be used in production.",
-                host, port
-            );
+                    "trustAllCertificates is enabled for {}:{} — TLS certificate and hostname " +
+                            "validation is disabled. This makes the connection vulnerable to " +
+                            "man-in-the-middle attacks and must never be used in production.",
+                    host, port);
             props.put("mail." + protocolName + ".ssl.trust", "*");
             props.put("mail." + protocolName + ".ssl.checkserveridentity", "false");
         }
 
         // Never set mail.debug=true here: JavaMail writes the raw protocol transcript
-        // (including AUTH PLAIN/LOGIN handshakes with base64-encoded, trivially decodable
+        // (including AUTH PLAIN/LOGIN handshakes with base64-encoded, trivially
+        // decodable
         // credentials) directly to whatever debug stream is configured. Debug output is
-        // instead enabled, when appropriate, via a redacting stream in applyDebugLogging().
+        // instead enabled, when appropriate, via a redacting stream in
+        // applyDebugLogging().
         return props;
     }
 
     /**
-     * Enables JavaMail debug output on the given session only when the run context logger is at
-     * DEBUG level, and routes it through a redacting filter so credential material (AUTH/LOGIN
-     * handshakes, base64 tokens) is never written to stdout or the application logger.
+     * Enables JavaMail debug output on the given session only when the run context
+     * logger is at
+     * DEBUG level, and routes it through a redacting filter so credential material
+     * (AUTH/LOGIN
+     * handshakes, base64 tokens) is never written to stdout or the application
+     * logger.
      */
     public static void applyDebugLogging(Session session, RunContext runContext) {
         if (runContext.logger().isDebugEnabled()) {
@@ -196,8 +205,10 @@ public class MailService {
     }
 
     /**
-     * OutputStream that buffers JavaMail's debug output line-by-line and forwards each line to
-     * the run context logger, redacting any line that looks like it may carry credentials before
+     * OutputStream that buffers JavaMail's debug output line-by-line and forwards
+     * each line to
+     * the run context logger, redacting any line that looks like it may carry
+     * credentials before
      * it is ever logged.
      */
     private static final class RedactingOutputStream extends OutputStream {
@@ -239,7 +250,7 @@ public class MailService {
     }
 
     public static void connectToStore(Store store, String host, Integer port, String username,
-        String password, RunContext runContext) throws MessagingException {
+            String password, RunContext runContext) throws MessagingException {
         try {
             store.connect(host, port, username, password);
         } catch (MessagingException e) {
@@ -256,23 +267,23 @@ public class MailService {
     }
 
     public static EmailData parseEmailData(MimeMessage message, RunContext runContext, long maxAttachmentSize)
-        throws MessagingException, IOException {
+            throws MessagingException, IOException {
         Date receivedDate = message.getReceivedDate() != null ? message.getReceivedDate() : message.getSentDate();
         ZonedDateTime date = receivedDate != null
-            ? ZonedDateTime.ofInstant(receivedDate.toInstant(), ZonedDateTime.now().getZone())
-            : ZonedDateTime.now();
+                ? ZonedDateTime.ofInstant(receivedDate.toInstant(), ZonedDateTime.now().getZone())
+                : ZonedDateTime.now();
 
         return EmailData.builder()
-            .subject(message.getSubject())
-            .from(getAddressString(message.getFrom()))
-            .to(getAddressList(message.getRecipients(Message.RecipientType.TO)))
-            .cc(getAddressList(message.getRecipients(Message.RecipientType.CC)))
-            .bcc(getAddressList(message.getRecipients(Message.RecipientType.BCC)))
-            .date(date)
-            .body(extractTextContent(message))
-            .messageId(message.getMessageID())
-            .attachments(extractAttachments(message, runContext, maxAttachmentSize))
-            .build();
+                .subject(message.getSubject())
+                .from(getAddressString(message.getFrom()))
+                .to(getAddressList(message.getRecipients(Message.RecipientType.TO)))
+                .cc(getAddressList(message.getRecipients(Message.RecipientType.CC)))
+                .bcc(getAddressList(message.getRecipients(Message.RecipientType.BCC)))
+                .date(date)
+                .body(extractTextContent(message))
+                .messageId(message.getMessageID())
+                .attachments(extractAttachments(message, runContext, maxAttachmentSize))
+                .build();
     }
 
     private static String getAddressString(Address[] addresses) {
@@ -287,8 +298,8 @@ public class MailService {
             return Collections.emptyList();
         }
         return Arrays.stream(addresses)
-            .map(addr -> ((InternetAddress) addr).getAddress())
-            .toList();
+                .map(addr -> ((InternetAddress) addr).getAddress())
+                .toList();
     }
 
     private static String extractTextContent(Message message) throws MessagingException, IOException {
@@ -299,7 +310,8 @@ public class MailService {
         if (message.getContent() instanceof String text) {
             return text;
         }
-        // Types without a content handler (e.g. text/calendar) come back as a raw stream.
+        // Types without a content handler (e.g. text/calendar) come back as a raw
+        // stream.
         if (message.isMimeType("text/*")) {
             try (var in = message.getInputStream()) {
                 return new String(in.readAllBytes(), charsetOf(message));
@@ -326,18 +338,31 @@ public class MailService {
 
         for (int i = 0; i < count; i++) {
             BodyPart bodyPart = multipart.getBodyPart(i);
+
+            if (isAttachment(bodyPart)) {
+                continue;
+            }
+
             if (bodyPart.isMimeType("multipart/*")) {
                 result.append(extractTextFromMultipart((MimeMultipart) bodyPart.getContent()));
-            } else {
-                result.append(bodyPart.getContent().toString());
+            } else if (bodyPart.isMimeType("text/*")) {
+                Object content = bodyPart.getContent();
+                if (content instanceof String text) {
+                    result.append(text);
+                } else {
+                    try (var inputStream = bodyPart.getInputStream()) {
+                        result.append(new String(inputStream.readAllBytes(), charsetOf(bodyPart)));
+                    }
+                }
             }
         }
 
         return result.toString();
     }
 
-    private static List<AttachmentInfo> extractAttachments(Message message, RunContext runContext, long maxAttachmentSize)
-        throws MessagingException, IOException {
+    private static List<AttachmentInfo> extractAttachments(Message message, RunContext runContext,
+            long maxAttachmentSize)
+            throws MessagingException, IOException {
         List<AttachmentInfo> attachments = new ArrayList<>();
 
         if (message.isMimeType("multipart/*")) {
@@ -351,7 +376,7 @@ public class MailService {
     }
 
     private static void extractAttachmentsFromMultipart(MimeMultipart multipart, List<AttachmentInfo> attachments,
-        RunContext runContext, long maxAttachmentSize) throws MessagingException, IOException {
+            RunContext runContext, long maxAttachmentSize) throws MessagingException, IOException {
         int count = multipart.getCount();
 
         for (int i = 0; i < count; i++) {
@@ -360,29 +385,32 @@ public class MailService {
             if (isAttachment(bodyPart)) {
                 attachments.add(extractAttachment(bodyPart, attachments.size(), runContext, maxAttachmentSize));
             } else if (bodyPart.isMimeType("multipart/*")) {
-                extractAttachmentsFromMultipart((MimeMultipart) bodyPart.getContent(), attachments, runContext, maxAttachmentSize);
+                extractAttachmentsFromMultipart(
+                        (MimeMultipart) bodyPart.getContent(), attachments, runContext,
+                        maxAttachmentSize);
             }
         }
     }
 
     private static boolean isAttachment(Part part) throws MessagingException {
         return Part.ATTACHMENT.equalsIgnoreCase(part.getDisposition()) ||
-            (part.getFileName() != null && !part.getFileName().isEmpty());
+                (part.getFileName() != null && !part.getFileName().isEmpty());
     }
 
     private static AttachmentInfo extractAttachment(Part part, int index, RunContext runContext, long maxAttachmentSize)
-        throws MessagingException {
+            throws MessagingException {
         var filename = sanitizeFilename(part.getFileName(), index);
 
         var attachment = AttachmentInfo.builder()
-            .filename(part.getFileName())
-            .contentType(part.getContentType())
-            .size(part.getSize());
+                .filename(part.getFileName())
+                .contentType(part.getContentType())
+                .size(part.getSize());
 
         try {
             attachment.uri(storeAttachment(part, filename, runContext, maxAttachmentSize));
         } catch (IOException | MessagingException e) {
-            // A single unreadable/unstorable attachment must not fail the whole trigger evaluation.
+            // A single unreadable/unstorable attachment must not fail the whole trigger
+            // evaluation.
             runContext.logger().warn("Failed to store attachment '{}' in internal storage", filename, e);
         }
 
@@ -390,9 +418,12 @@ public class MailService {
     }
 
     /**
-     * Strips any path information from an attachment filename before it is used on the local
-     * filesystem, and restricts it to a safe character set and length. Filenames come from
-     * untrusted senders and could otherwise be crafted for a path traversal (CWE-22) or for
+     * Strips any path information from an attachment filename before it is used on
+     * the local
+     * filesystem, and restricts it to a safe character set and length. Filenames
+     * come from
+     * untrusted senders and could otherwise be crafted for a path traversal
+     * (CWE-22) or for
      * characters (#, ?, %) that get misinterpreted when the storage URI is built.
      */
     private static String sanitizeFilename(String filename, int index) {
@@ -416,15 +447,17 @@ public class MailService {
     }
 
     private static URI storeAttachment(Part part, String filename, RunContext runContext, long maxAttachmentSize)
-        throws IOException, MessagingException {
+            throws IOException, MessagingException {
         Path tempFile = runContext.workingDir().createTempFile();
 
         long copied;
         try {
             copied = copyBounded(part.getInputStream(), tempFile, maxAttachmentSize);
         } catch (IOException | MessagingException e) {
-            // The temp file lives in the RunContext working directory, which for RealTimeTrigger spans the
-            // whole IMAP IDLE connection: leaving it behind on failure would accumulate orphan files.
+            // The temp file lives in the RunContext working directory, which for
+            // RealTimeTrigger spans the
+            // whole IMAP IDLE connection: leaving it behind on failure would accumulate
+            // orphan files.
             Files.deleteIfExists(tempFile);
             throw e;
         }
@@ -432,19 +465,21 @@ public class MailService {
         if (copied < 0) {
             Files.deleteIfExists(tempFile);
             runContext.logger().warn(
-                "Attachment '{}' exceeds the maximum allowed size of {} bytes, keeping its metadata but not its content",
-                filename, maxAttachmentSize
-            );
+                    "Attachment '{}' exceeds the maximum allowed size of {} bytes, keeping its metadata but not its content",
+                    filename, maxAttachmentSize);
             return null;
         }
 
-        // The storage context is shared across the whole trigger evaluation, so two attachments with the same
-        // filename (within one email, or across emails in one batch) would otherwise collide on the same URI.
+        // The storage context is shared across the whole trigger evaluation, so two
+        // attachments with the same
+        // filename (within one email, or across emails in one batch) would otherwise
+        // collide on the same URI.
         String storedName = IdUtils.create() + "-" + filename;
         return runContext.storage().putFile(tempFile.toFile(), storedName);
     }
 
-    // bodyPart.getSize() is not trusted here: JavaMail can report -1 or an estimate that does not
+    // bodyPart.getSize() is not trusted here: JavaMail can report -1 or an estimate
+    // that does not
     // match the actual stream length.
     private static long copyBounded(InputStream inputStream, Path target, long maxBytes) throws IOException {
         byte[] buffer = new byte[COPY_BUFFER_SIZE];
@@ -465,8 +500,8 @@ public class MailService {
     }
 
     public static List<EmailData> fetchNewEmails(RunContext runContext, String protocol, String host, Integer port,
-        String username, String password, String folder, Boolean ssl, Boolean trustAllCertificates,
-        Long maxAttachmentSize, ZonedDateTime lastCheckTime) throws MessagingException, IOException {
+            String username, String password, String folder, Boolean ssl, Boolean trustAllCertificates,
+            Long maxAttachmentSize, ZonedDateTime lastCheckTime) throws MessagingException, IOException {
 
         Properties props = setupMailProperties(protocol, host, port, ssl, trustAllCertificates, runContext);
         String protocolName = getProtocolName(protocol, ssl);
@@ -489,7 +524,7 @@ public class MailService {
     }
 
     private static List<EmailData> processMessages(Store store, String folder, ZonedDateTime lastCheckTime,
-        RunContext runContext, long maxAttachmentSize) throws MessagingException, IOException {
+            RunContext runContext, long maxAttachmentSize) throws MessagingException, IOException {
         List<EmailData> newEmails = new ArrayList<>();
         Folder mailFolder = store.getFolder(folder);
         try {
@@ -511,18 +546,16 @@ public class MailService {
 
                 if (message instanceof MimeMessage mimeMessage) {
                     Date receivedDate = message.getReceivedDate() != null ? message.getReceivedDate()
-                        : message.getSentDate();
+                            : message.getSentDate();
 
                     if (receivedDate != null) {
                         ZonedDateTime messageDate = ZonedDateTime.ofInstant(
-                            receivedDate.toInstant(),
-                            lastCheckTime.getZone()
-                        );
+                                receivedDate.toInstant(),
+                                lastCheckTime.getZone());
 
                         runContext.logger().debug(
-                            "Message date: {}, Last check: {}, Is newer: {}",
-                            messageDate, lastCheckTime, messageDate.isAfter(lastCheckTime)
-                        );
+                                "Message date: {}, Last check: {}, Is newer: {}",
+                                messageDate, lastCheckTime, messageDate.isAfter(lastCheckTime));
 
                         if (messageDate.isAfter(lastCheckTime)) {
                             isNew = true;
@@ -530,11 +563,11 @@ public class MailService {
                             if (emailData != null) {
                                 newEmails.addFirst(emailData);
                                 runContext.logger().info(
-                                    "New email - Subject: '{}', From: '{}', Body: '{}'",
-                                    emailData.getSubject(), emailData.getFrom(),
-                                    emailData.getBody().length() > 100 ? emailData.getBody().substring(0, 100) + "..."
-                                        : emailData.getBody()
-                                );
+                                        "New email - Subject: '{}', From: '{}', Body: '{}'",
+                                        emailData.getSubject(), emailData.getFrom(),
+                                        emailData.getBody().length() > 100
+                                                ? emailData.getBody().substring(0, 100) + "..."
+                                                : emailData.getBody());
                             }
                         }
                     } else {
@@ -542,7 +575,8 @@ public class MailService {
                     }
                 }
 
-                // Arrival order and message dates can disagree, so an older message only ends the scan once the newest ones have been checked.
+                // Arrival order and message dates can disagree, so an older message only ends
+                // the scan once the newest ones have been checked.
                 if (!isNew && checkedMessages >= MIN_MESSAGES_TO_CHECK) {
                     break;
                 }
