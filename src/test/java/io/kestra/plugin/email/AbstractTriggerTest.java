@@ -32,11 +32,6 @@ public abstract class AbstractTriggerTest extends AbstractEmailTest {
     protected static final byte[] PNG_CONTENT = { (byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x01, (byte) 0xFF };
     protected static final byte[] PDF_CONTENT = "%PDF-1.4\n%\u00e2\u00e3\u00cf\u00d3\n%%EOF\n".getBytes(StandardCharsets.ISO_8859_1);
 
-    /**
-     * Raw RFC822 payloads, sent exactly as a foreign mail client would emit them. Their MIME flaws
-     * (a charset unknown to the JVM, a missing multipart boundary) must not be normalized away by
-     * Jakarta Mail's builder API, which is why they are injected as bytes.
-     */
     protected static final String UNKNOWN_CHARSET_EMAIL = "From: bogus-charset@example.com\r\n"
         + "To: test@localhost\r\n"
         + "Subject: Bogus Charset\r\n"
@@ -95,10 +90,7 @@ public abstract class AbstractTriggerTest extends AbstractEmailTest {
         greenMail.getUserManager().getUser("test@localhost").deliver(message);
     }
 
-    /**
-     * Delivers a raw RFC822 message as-is, the way an arbitrary external sender would: no header is
-     * rebuilt and no flaw is repaired before the message reaches the store.
-     */
+    // Keep malformed MIME payloads intact for parser tests.
     protected void sendRawTestEmail(String rawContent) throws MessagingException {
         var props = new Properties();
         var session = Session.getDefaultInstance(props);

@@ -199,10 +199,14 @@ public class RealTimeTrigger extends AbstractMailTrigger
                                     MailService.EmailData emailData = null;
                                     try {
                                         emailData = MailService.parseEmailData(mimeMessage, runContext, config.maxAttachmentSize);
+                                    } catch (FolderClosedException | StoreClosedException ex) {
+                                        throw ex;
                                     } catch (Exception ex) {
-                                        // One malformed email must not drop the rest of the IDLE batch:
-                                        // it is logged and skipped, every other email is still emitted.
-                                        runContext.logger().warn("Failed to parse email #{} - skipping it", message.getMessageNumber(), ex);
+                                        if (!folder.isOpen()) {
+                                            throw new FolderClosedException(folder, "Folder closed while processing message");
+                                        }
+                                        // Skip malformed content while preserving the rest of the IDLE batch.
+                                        runContext.logger().warn("Failed to parse email with Message-ID '{}' - skipping it", mimeMessage.getMessageID(), ex);
                                     }
                                     if (emailData != null) {
                                         runContext.logger().info(
@@ -216,6 +220,7 @@ public class RealTimeTrigger extends AbstractMailTrigger
                         } catch (Exception ex) {
                             if (isActive.get()) {
                                 runContext.logger().error("Error processing new messages", ex);
+                                sink.error(ex);
                             }
                         }
                     }
