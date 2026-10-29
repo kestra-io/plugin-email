@@ -269,7 +269,7 @@ public class MailService {
             .cc(getAddressList(message.getRecipients(Message.RecipientType.CC)))
             .bcc(getAddressList(message.getRecipients(Message.RecipientType.BCC)))
             .date(date)
-            .body(extractTextContent(message))
+            .body(extractTextContent(message, runContext))
             .messageId(message.getMessageID())
             .attachments(extractAttachments(message, runContext, maxAttachmentSize))
             .build();
@@ -291,18 +291,36 @@ public class MailService {
             .toList();
     }
 
-    private static String extractTextContent(Message message) throws MessagingException, IOException {
+    private static String extractTextContent(Message message, RunContext runContext) throws MessagingException, IOException {
         if (message.isMimeType("multipart/*")) {
             MimeMultipart multipart = (MimeMultipart) message.getContent();
-            return extractTextFromMultipart(multipart);
+            return extractTextFromMultipart(multipart, runContext);
         }
-        if (message.getContent() instanceof String text) {
-            return text;
+        return extractTextFromPart(message, runContext);
+    }
+
+    /**
+     * Decodes the text of a single (non-multipart) part. Jakarta Mail throws
+     * {@link java.io.UnsupportedEncodingException} from {@link Part#getContent()} for a text part whose
+     * declared charset is unknown to the JVM (e.g. {@code text/plain; charset=x-bogus}); in that case the
+     * raw stream is decoded with the declared charset, falling back to UTF-8, so a sender cannot block the
+     * whole poll by declaring one. Non-text parts yield an empty body.
+     */
+    private static String extractTextFromPart(Part part, RunContext runContext) throws MessagingException, IOException {
+        try {
+            if (part.getContent() instanceof String text) {
+                return text;
+            }
+        } catch (IOException e) {
+            runContext.logger().warn(
+                "A text part cannot be decoded by Jakarta Mail; its content is decoded from the raw stream with the declared charset instead",
+                e
+            );
         }
         // Types without a content handler (e.g. text/calendar) come back as a raw stream.
-        if (message.isMimeType("text/*")) {
-            try (var in = message.getInputStream()) {
-                return new String(in.readAllBytes(), charsetOf(message));
+        if (part.isMimeType("text/*")) {
+            try (var in = part.getInputStream()) {
+                return new String(in.readAllBytes(), charsetOf(part));
             }
         }
         return "";
@@ -320,14 +338,17 @@ public class MailService {
         return StandardCharsets.UTF_8;
     }
 
-    private static String extractTextFromMultipart(MimeMultipart multipart) throws MessagingException, IOException {
+    private static String extractTextFromMultipart(MimeMultipart multipart, RunContext runContext)
+        throws MessagingException, IOException {
         StringBuilder result = new StringBuilder();
         int count = multipart.getCount();
 
         for (int i = 0; i < count; i++) {
             BodyPart bodyPart = multipart.getBodyPart(i);
             if (bodyPart.isMimeType("multipart/*")) {
-                result.append(extractTextFromMultipart((MimeMultipart) bodyPart.getContent()));
+                result.append(extractTextFromMultipart((MimeMultipart) bodyPart.getContent(), runContext));
+            } else if (bodyPart.isMimeType("text/*")) {
+                result.append(extractTextFromPart(bodyPart, runContext));
             } else {
                 result.append(bodyPart.getContent().toString());
             }
@@ -343,11 +364,21 @@ public class MailService {
         if (message.isMimeType("multipart/*")) {
             MimeMultipart multipart = (MimeMultipart) message.getContent();
             extractAttachmentsFromMultipart(multipart, attachments, runContext, maxAttachmentSize);
-        } else if (isAttachment(message) || !(message.getContent() instanceof String)) {
+        } else if (isAttachment(message) || isNotTextContent(message)) {
             attachments.add(extractAttachment(message, attachments.size(), runContext, maxAttachmentSize));
         }
 
         return attachments;
+    }
+
+    private static boolean isNotTextContent(Part part) throws MessagingException, IOException {
+        try {
+            return !(part.getContent() instanceof String);
+        } catch (IOException e) {
+            // getContent() fails e.g. for an unsupported charset: the raw text has already been decoded
+            // into the body instead, so the email is not reported as its own attachment.
+            return false;
+        }
     }
 
     private static void extractAttachmentsFromMultipart(MimeMultipart multipart, List<AttachmentInfo> attachments,
@@ -526,7 +557,14 @@ public class MailService {
 
                         if (messageDate.isAfter(lastCheckTime)) {
                             isNew = true;
-                            EmailData emailData = parseEmailData(mimeMessage, runContext, maxAttachmentSize);
+                            EmailData emailData = null;
+                            try {
+                                emailData = parseEmailData(mimeMessage, runContext, maxAttachmentSize);
+                            } catch (Exception e) {
+                                // One malformed email must not fail the whole poll: it is logged and
+                                // skipped, every other new email is still returned.
+                                runContext.logger().warn("Failed to parse email #{} - skipping it", messageNumber, e);
+                            }
                             if (emailData != null) {
                                 newEmails.addFirst(emailData);
                                 runContext.logger().info(

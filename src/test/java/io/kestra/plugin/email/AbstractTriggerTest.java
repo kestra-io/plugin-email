@@ -1,5 +1,6 @@
 package io.kestra.plugin.email;
 
+import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Properties;
@@ -28,8 +29,45 @@ public abstract class AbstractTriggerTest extends AbstractEmailTest {
     protected static final String ATTACHMENT_CONTENT = "attachment content";
     protected static final String PDF_FILENAME = "scan.pdf";
     protected static final String ICS_CONTENT = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nSUMMARY:Caf\u00e9 meeting\r\nEND:VCALENDAR";
-    protected static final byte[] PNG_CONTENT = {(byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x01, (byte) 0xFF};
+    protected static final byte[] PNG_CONTENT = { (byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x01, (byte) 0xFF };
     protected static final byte[] PDF_CONTENT = "%PDF-1.4\n%\u00e2\u00e3\u00cf\u00d3\n%%EOF\n".getBytes(StandardCharsets.ISO_8859_1);
+
+    /**
+     * Raw RFC822 payloads, sent exactly as a foreign mail client would emit them. Their MIME flaws
+     * (a charset unknown to the JVM, a missing multipart boundary) must not be normalized away by
+     * Jakarta Mail's builder API, which is why they are injected as bytes.
+     */
+    protected static final String UNKNOWN_CHARSET_EMAIL = "From: bogus-charset@example.com\r\n"
+        + "To: test@localhost\r\n"
+        + "Subject: Bogus Charset\r\n"
+        + "MIME-Version: 1.0\r\n"
+        + "Content-Type: text/plain; charset=x-bogus\r\n"
+        + "\r\n"
+        + "Bogus charset body\r\n";
+
+    protected static final String UNKNOWN_CHARSET_MULTIPART_EMAIL = "From: bogus-charset@example.com\r\n"
+        + "To: test@localhost\r\n"
+        + "Subject: Bogus Charset In Multipart\r\n"
+        + "MIME-Version: 1.0\r\n"
+        + "Content-Type: multipart/mixed; boundary=\"example-boundary\"\r\n"
+        + "\r\n"
+        + "--example-boundary\r\n"
+        + "Content-Type: text/plain; charset=UTF-8\r\n"
+        + "\r\n"
+        + "Good part\r\n"
+        + "--example-boundary\r\n"
+        + "Content-Type: text/plain; charset=x-bogus\r\n"
+        + "\r\n"
+        + "Bogus part\r\n"
+        + "--example-boundary--\r\n";
+
+    protected static final String MISSING_BOUNDARY_EMAIL = "From: broken-mime@example.com\r\n"
+        + "To: test@localhost\r\n"
+        + "Subject: Missing Boundary\r\n"
+        + "MIME-Version: 1.0\r\n"
+        + "Content-Type: multipart/mixed\r\n"
+        + "\r\n"
+        + "An email whose multipart declares no boundary\r\n";
 
     @RegisterExtension
     static GreenMailExtension greenMail = new GreenMailExtension(
@@ -54,6 +92,18 @@ public abstract class AbstractTriggerTest extends AbstractEmailTest {
         message.addRecipient(Message.RecipientType.TO, new InternetAddress("test@localhost"));
         message.setSubject(subject);
         message.setText(body);
+        greenMail.getUserManager().getUser("test@localhost").deliver(message);
+    }
+
+    /**
+     * Delivers a raw RFC822 message as-is, the way an arbitrary external sender would: no header is
+     * rebuilt and no flaw is repaired before the message reaches the store.
+     */
+    protected void sendRawTestEmail(String rawContent) throws MessagingException {
+        var props = new Properties();
+        var session = Session.getDefaultInstance(props);
+
+        var message = new MimeMessage(session, new ByteArrayInputStream(rawContent.getBytes(StandardCharsets.UTF_8)));
         greenMail.getUserManager().getUser("test@localhost").deliver(message);
     }
 

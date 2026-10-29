@@ -196,7 +196,14 @@ public class RealTimeTrigger extends AbstractMailTrigger
                                     break;
 
                                 if (message instanceof MimeMessage mimeMessage) {
-                                    MailService.EmailData emailData = MailService.parseEmailData(mimeMessage, runContext, config.maxAttachmentSize);
+                                    MailService.EmailData emailData = null;
+                                    try {
+                                        emailData = MailService.parseEmailData(mimeMessage, runContext, config.maxAttachmentSize);
+                                    } catch (Exception ex) {
+                                        // One malformed email must not drop the rest of the IDLE batch:
+                                        // it is logged and skipped, every other email is still emitted.
+                                        runContext.logger().warn("Failed to parse email #{} - skipping it", message.getMessageNumber(), ex);
+                                    }
                                     if (emailData != null) {
                                         runContext.logger().info(
                                             "IMAP IDLE: New email - Subject: '{}', From: '{}'",

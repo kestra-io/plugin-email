@@ -6,6 +6,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -24,6 +25,7 @@ import reactor.core.publisher.Flux;
 
 import static io.kestra.core.tenant.TenantService.MAIN_TENANT;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -119,6 +121,39 @@ class RealTimeTriggerTest extends AbstractTriggerTest {
         assertThat("Stored attachment content should match the sent PDF", content, is(PDF_CONTENT));
     }
 
+    @Test
+    void RealTimeTriggerUnknownCharsetDoesNotDropTheOtherEmails() throws Exception {
+        var executions = runRealtimeTrigger(
+            "flows/real-time-trigger-imap-bad-charset.yaml",
+            "real-time-trigger-imap-bad-charset",
+            REALTIME_TRIGGER_STARTUP_WAIT,
+            3,
+            () ->
+            {
+                sendTestEmail("Realtime Good 1", "bogus-charset@example.com", "Realtime good body 1");
+                sendRawTestEmail(UNKNOWN_CHARSET_EMAIL);
+                sendTestEmail("Realtime Good 2", "bogus-charset@example.com", "Realtime good body 2");
+            }
+        );
+
+        assertThat("Every email should trigger, there should not be duplicates", executions, hasSize(3));
+        assertThat(
+            "Every email should trigger despite the unknown charset",
+            executions.stream().map(execution -> execution.getTrigger().getVariables().get("subject")).toList(),
+            containsInAnyOrder("Realtime Good 1", "Bogus Charset", "Realtime Good 2")
+        );
+
+        var bogusCharsetExecution = executions.stream()
+            .filter(execution -> "Bogus Charset".equals(execution.getTrigger().getVariables().get("subject")))
+            .findFirst()
+            .orElseThrow();
+        assertThat(
+            "An email whose charset is unknown to the JVM should still have its body decoded",
+            bogusCharsetExecution.getTrigger().getVariables().get("body"),
+            is("Bogus charset body")
+        );
+    }
+
     private Execution runRealtimeTrigger(String flowPath, String flowId, Duration startupWait) throws Exception {
         return runRealtimeTrigger(
             flowPath, flowId, startupWait,
@@ -128,11 +163,26 @@ class RealTimeTriggerTest extends AbstractTriggerTest {
 
     private Execution runRealtimeTrigger(String flowPath, String flowId, Duration startupWait, Executable sendEmail)
         throws Exception {
-        var queueCount = new CountDownLatch(1);
+        var executions = runRealtimeTrigger(flowPath, flowId, startupWait, 1, sendEmail);
+
+        Execution execution = executions.getFirst();
+        assertThat("Execution should be captured", execution, notNullValue());
+        return execution;
+    }
+
+    /**
+     * Variants of {@link #runRealtimeTrigger} awaiting exactly {@code expectedExecutions} executions so that
+     * tests can assert that emails arriving one after another in the same IDLE notification all trigger.
+     */
+    private List<Execution> runRealtimeTrigger(String flowPath, String flowId, Duration startupWait, int expectedExecutions,
+        Executable sendEmail) throws Exception {
+        var queueCount = new CountDownLatch(expectedExecutions);
+        var executions = new CopyOnWriteArrayList<Execution>();
 
         Flux<Execution> receive = TestsUtils.receive(executionQueue, execution ->
         {
             if (execution.getLeft().getFlowId().equals(flowId)) {
+                executions.add(execution.getLeft());
                 queueCount.countDown();
             }
         });
@@ -150,10 +200,11 @@ class RealTimeTriggerTest extends AbstractTriggerTest {
         }
 
         boolean await = queueCount.await(30, TimeUnit.SECONDS);
-        assertThat(flowId + " should execute", await, is(true));
+        assertThat(flowId + " should execute " + expectedExecutions + " time(s)", await, is(true));
 
         var execution = receive.blockLast();
-        assertThat("Execution should be captured", execution, notNullValue());
-        return execution;
+        assertThat("Executions should be captured", execution, notNullValue());
+
+        return executions;
     }
 }
