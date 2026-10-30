@@ -76,6 +76,17 @@ class MailReceivedTriggerTest extends AbstractTriggerTest {
             for (int i = 1; i <= BURST_SIZE; i++) {
                 sendTestEmail("Burst Email " + i, "sender5@example.com", "Burst email body " + i);
             }
+        } else if (testName.equals("textAttachmentWithUnknownCharsetDoesNotDropEmail")) {
+            sendRawTestEmail(UNKNOWN_CHARSET_TEXT_ATTACHMENT_EMAIL);
+        } else if (testName.equals("emailsWithUnknownCharsetAreStillReturned")) {
+            sendTestEmail("Good Email 1", "sender9@example.com", "Good email body 1");
+            sendRawTestEmail(UNKNOWN_CHARSET_EMAIL);
+            sendRawTestEmail(UNKNOWN_CHARSET_MULTIPART_EMAIL);
+            sendTestEmail("Good Email 2", "sender9@example.com", "Good email body 2");
+        } else if (testName.equals("malformedEmailIsSkippedWithoutBlockingTheOthers")) {
+            sendTestEmail("Good Email 3", "sender10@example.com", "Good email body 3");
+            sendRawTestEmail(MISSING_BOUNDARY_EMAIL);
+            sendTestEmail("Good Email 4", "sender10@example.com", "Good email body 4");
         } else {
             sendTestEmail("First Email", "sender1@example.com", "First test email body");
         }
@@ -322,6 +333,79 @@ class MailReceivedTriggerTest extends AbstractTriggerTest {
             "Emails should be returned oldest first",
             emails.stream().map(email -> email.get("subject")).toList(),
             is(IntStream.rangeClosed(1, BURST_SIZE).mapToObj(i -> "Burst Email " + i).toList())
+        );
+    }
+
+    @Test
+    @EvaluateTrigger(flow = "flows/mail-received-trigger-imap.yaml", triggerId = "imap-mail-trigger")
+    void emailsWithUnknownCharsetAreStillReturned(Optional<Execution> optionalExecution) {
+        assertThat(optionalExecution.isPresent(), is(true));
+
+        Map<String, Object> triggerVars = optionalExecution.get().getTrigger().getVariables();
+        assertThat(
+            "The poll should not fail on an email whose charset is unknown to the JVM",
+            triggerVars.get("total"),
+            is(4)
+        );
+
+        @SuppressWarnings("unchecked")
+        var emails = (List<Map<String, Object>>) triggerVars.get("emails");
+        assertThat(
+            "Every email should be returned, including the ones with an unknown charset",
+            emails.stream().map(email -> email.get("subject")).toList(),
+            contains("Good Email 1", "Bogus Charset", "Bogus Charset In Multipart", "Good Email 2")
+        );
+
+        var topLevel = emails.get(1);
+        assertThat("A top-level unknown charset must not lose the body", topLevel.get("body"), is("Bogus charset body"));
+
+        var withMultipart = emails.get(2);
+        assertThat(
+            "An unknown charset multipart part must not lose itself or the other parts",
+            withMultipart.get("body"),
+            is("Good partBogus part")
+        );
+    }
+
+    @Test
+    @EvaluateTrigger(flow = "flows/mail-received-trigger-imap.yaml", triggerId = "imap-mail-trigger")
+    void textAttachmentWithUnknownCharsetDoesNotDropEmail(Optional<Execution> optionalExecution) {
+        assertThat(optionalExecution.isPresent(), is(true));
+
+        Map<String, Object> triggerVars = optionalExecution.get().getTrigger().getVariables();
+        assertThat("The email with an unknown-charset text attachment should be returned", triggerVars.get("total"), is(1));
+
+        @SuppressWarnings("unchecked")
+        var emails = (List<Map<String, Object>>) triggerVars.get("emails");
+        Map<String, Object> email = emails.getFirst();
+        assertThat(email.get("subject"), is("Unknown Charset Text Attachment"));
+        assertThat(email.get("body"), is("Email body"));
+
+        @SuppressWarnings("unchecked")
+        var attachments = (List<Map<String, Object>>) email.get("attachments");
+        assertThat("The undecodable text attachment should still be listed", attachments, hasSize(1));
+        assertThat(attachments.getFirst().get("filename"), is("unknown.txt"));
+        assertThat(attachments.getFirst().get("uri"), notNullValue());
+    }
+
+    @Test
+    @EvaluateTrigger(flow = "flows/mail-received-trigger-imap.yaml", triggerId = "imap-mail-trigger")
+    void malformedEmailIsSkippedWithoutBlockingTheOthers(Optional<Execution> optionalExecution) {
+        assertThat(optionalExecution.isPresent(), is(true));
+
+        Map<String, Object> triggerVars = optionalExecution.get().getTrigger().getVariables();
+        assertThat(
+            "The poll should not fail on a malformed email",
+            triggerVars.get("total"),
+            is(2)
+        );
+
+        @SuppressWarnings("unchecked")
+        var emails = (List<Map<String, Object>>) triggerVars.get("emails");
+        assertThat(
+            "Every well-formed email should be returned despite the malformed one being skipped",
+            emails.stream().map(email -> email.get("subject")).toList(),
+            contains("Good Email 3", "Good Email 4")
         );
     }
 }

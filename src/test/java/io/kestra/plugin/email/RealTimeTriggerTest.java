@@ -6,6 +6,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -50,7 +51,7 @@ class RealTimeTriggerTest extends AbstractTriggerTest {
             Duration.ZERO
         );
 
-        Map<String, Object> triggerVars = execution.getTrigger().getVariables();
+        var triggerVars = execution.getTrigger().getVariables();
         assertThat("Latest email subject should be present", triggerVars.get("subject"), notNullValue());
         assertThat("Latest email sender should be present", triggerVars.get("from"), notNullValue());
         assertThat("Latest email body should be present", triggerVars.get("body"), notNullValue());
@@ -64,7 +65,7 @@ class RealTimeTriggerTest extends AbstractTriggerTest {
             REALTIME_TRIGGER_STARTUP_WAIT
         );
 
-        Map<String, Object> triggerVars = execution.getTrigger().getVariables();
+        var triggerVars = execution.getTrigger().getVariables();
         assertThat("Latest email subject should be present", triggerVars.get("subject"), notNullValue());
         assertThat("Latest email sender should be present", triggerVars.get("from"), notNullValue());
         assertThat("Latest email body should be present", triggerVars.get("body"), notNullValue());
@@ -82,7 +83,7 @@ class RealTimeTriggerTest extends AbstractTriggerTest {
             )
         );
 
-        Map<String, Object> triggerVars = execution.getTrigger().getVariables();
+        var triggerVars = execution.getTrigger().getVariables();
 
         @SuppressWarnings("unchecked")
         var attachments = (List<Map<String, Object>>) triggerVars.get("attachments");
@@ -111,7 +112,7 @@ class RealTimeTriggerTest extends AbstractTriggerTest {
             () -> sendSinglePartTestEmail("Scanned Invoice", "sender@example.com", PDF_FILENAME, PDF_CONTENT, "application/pdf")
         );
 
-        Map<String, Object> triggerVars = execution.getTrigger().getVariables();
+        var triggerVars = execution.getTrigger().getVariables();
         assertThat("Email subject should match", triggerVars.get("subject"), is("Scanned Invoice"));
         assertThat("An email without a text part should have an empty body", triggerVars.get("body"), is(""));
 
@@ -158,12 +159,25 @@ class RealTimeTriggerTest extends AbstractTriggerTest {
 
     private Execution runRealtimeTrigger(String flowPath, String flowId, Duration startupWait, Executable sendEmail)
         throws Exception {
-        var queueCount = new CountDownLatch(1);
+        var executions = runRealtimeTrigger(flowPath, flowId, startupWait, 1, sendEmail);
+
+        var execution = executions.getFirst();
+        assertThat("Execution should be captured", execution, notNullValue());
+        return execution;
+    }
+
+    // Await multiple executions to cover emails arriving in one IDLE notification.
+    private List<Execution> runRealtimeTrigger(String flowPath, String flowId, Duration startupWait, int expectedExecutions,
+        Executable sendEmail) throws Exception {
+        var queueCount = new CountDownLatch(expectedExecutions);
+        var executions = new ConcurrentHashMap<String, Execution>();
 
         Flux<Execution> receive = TestsUtils.receive(executionQueue, execution ->
         {
             if (execution.getLeft().getFlowId().equals(flowId)) {
-                queueCount.countDown();
+                if (executions.putIfAbsent(execution.getLeft().getId(), execution.getLeft()) == null) {
+                    queueCount.countDown();
+                }
             }
         });
 
@@ -180,10 +194,11 @@ class RealTimeTriggerTest extends AbstractTriggerTest {
         }
 
         boolean await = queueCount.await(30, TimeUnit.SECONDS);
-        assertThat(flowId + " should execute", await, is(true));
+        assertThat(flowId + " should execute " + expectedExecutions + " time(s)", await, is(true));
 
         var execution = receive.blockLast();
-        assertThat("Execution should be captured", execution, notNullValue());
-        return execution;
+        assertThat("Executions should be captured", execution, notNullValue());
+
+        return List.copyOf(executions.values());
     }
 }
