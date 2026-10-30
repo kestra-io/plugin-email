@@ -141,7 +141,7 @@ class RealTimeTriggerTest extends AbstractTriggerTest {
             )
         );
 
-        Map<String, Object> triggerVars = execution.getTrigger().getVariables();
+        var triggerVars = execution.getTrigger().getVariables();
         assertThat("Execution should contain the oversized email", triggerVars.get("subject"), is("Email With Oversized Attachment"));
 
         @SuppressWarnings("unchecked")

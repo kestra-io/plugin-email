@@ -1,6 +1,5 @@
 package io.kestra.plugin.email;
 
-import java.io.IOException;
 import java.time.Duration;
 import java.time.ZonedDateTime;
 import java.util.List;
@@ -140,18 +139,14 @@ public class RealTimeTrigger extends AbstractMailTrigger
                     emailData.getFrom(), emailData.getSubject()
                 );
                 var execution = TriggerService.generateRealtimeExecution(this, conditionContext, context, emailData);
-                try {
-                    var relocatedEmailData = MailService.moveAttachmentsToExecution(
-                        emailData, runContext, execution
-                    );
-                    return execution.withTrigger(
-                        ExecutionTrigger.of(
-                            this, relocatedEmailData, execution.getTrigger().getLogFile()
-                        )
-                    );
-                } catch (IOException e) {
-                    throw new IllegalStateException("Failed to move email attachments to the realtime execution", e);
-                }
+                var relocatedEmailData = MailService.moveAttachmentsToExecution(
+                    emailData, runContext, execution
+                );
+                return execution.withTrigger(
+                    ExecutionTrigger.of(
+                        this, relocatedEmailData, execution.getTrigger().getLogFile()
+                    )
+                );
             })
             .onErrorContinue(
                 (throwable, o) -> runContext.logger().error("Error in real-time email stream", throwable)

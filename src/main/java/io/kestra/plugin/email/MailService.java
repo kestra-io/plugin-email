@@ -117,11 +117,10 @@ public class MailService {
         private final URI uri;
     }
 
-    static EmailData moveAttachmentsToExecution(EmailData emailData, RunContext runContext, Execution execution)
-        throws IOException {
+    static EmailData moveAttachmentsToExecution(EmailData emailData, RunContext runContext, Execution execution) {
         var attachments = new ArrayList<AttachmentInfo>();
 
-        for (AttachmentInfo attachment : emailData.getAttachments()) {
+        for (var attachment : emailData.getAttachments()) {
             var uri = attachment.getUri();
             if (uri != null) {
                 var sourcePrefix = "/executions/" + runContext.getTriggerExecutionId() + "/";
@@ -135,8 +134,14 @@ public class MailService {
                     try (var inputStream = runContext.storage().getFile(uri)) {
                         runContext.storage().putFile(inputStream, targetUri);
                     }
-                    runContext.storage().deleteFile(uri);
+                    var sourceUri = uri;
+                    // Switch as soon as the copy succeeded: the source may be unreadable after a failed delete.
                     uri = targetUri;
+                    try {
+                        runContext.storage().deleteFile(sourceUri);
+                    } catch (IOException e) {
+                        runContext.logger().warn("Failed to delete attachment '{}' from the trigger execution after copying it", attachment.getFilename(), e);
+                    }
                 } catch (IOException e) {
                     runContext.logger().warn("Failed to move attachment '{}' to the realtime execution", attachment.getFilename(), e);
                 }
