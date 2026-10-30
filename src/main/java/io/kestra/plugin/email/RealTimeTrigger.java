@@ -196,7 +196,18 @@ public class RealTimeTrigger extends AbstractMailTrigger
                                     break;
 
                                 if (message instanceof MimeMessage mimeMessage) {
-                                    MailService.EmailData emailData = MailService.parseEmailData(mimeMessage, runContext, config.maxAttachmentSize);
+                                    MailService.EmailData emailData = null;
+                                    try {
+                                        emailData = MailService.parseEmailData(mimeMessage, runContext, config.maxAttachmentSize);
+                                    } catch (FolderClosedException | StoreClosedException ex) {
+                                        throw ex;
+                                    } catch (Exception ex) {
+                                        if (!folder.isOpen()) {
+                                            throw new FolderClosedException(folder, "Folder closed while processing message");
+                                        }
+                                        // Skip malformed content while preserving the rest of the IDLE batch.
+                                        runContext.logger().warn("Failed to parse email with Message-ID '{}' - skipping it", mimeMessage.getMessageID(), ex);
+                                    }
                                     if (emailData != null) {
                                         runContext.logger().info(
                                             "IMAP IDLE: New email - Subject: '{}', From: '{}'",
@@ -209,6 +220,7 @@ public class RealTimeTrigger extends AbstractMailTrigger
                         } catch (Exception ex) {
                             if (isActive.get()) {
                                 runContext.logger().error("Error processing new messages", ex);
+                                sink.error(ex);
                             }
                         }
                     }
