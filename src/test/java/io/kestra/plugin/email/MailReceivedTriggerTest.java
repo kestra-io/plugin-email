@@ -34,12 +34,16 @@ class MailReceivedTriggerTest extends AbstractTriggerTest {
 
     @BeforeEach
     void sendEmailForTest(TestInfo testInfo) throws Exception {
-        // Each attachment test needs its own dedicated inbox content: mixing it with "First Email" would make
-        // "latestEmail" selection depend on GreenMail's delivery timestamp ordering, which is not deterministic
+        // Each attachment test needs its own dedicated inbox content: mixing it with
+        // "First Email" would make
+        // "latestEmail" selection depend on GreenMail's delivery timestamp ordering,
+        // which is not deterministic
         // when both messages are delivered within the same second.
         //
-        // This dispatch cannot move into each test method body: @EvaluateTrigger resolves the Optional<Execution>
-        // parameter (and therefore evaluates the trigger) before the test method body runs, so the email must
+        // This dispatch cannot move into each test method body: @EvaluateTrigger
+        // resolves the Optional<Execution>
+        // parameter (and therefore evaluates the trigger) before the test method body
+        // runs, so the email must
         // already be sitting in the mailbox by the time @BeforeEach returns.
         String testName = testInfo.getTestMethod().map(Method::getName).orElse("");
 
@@ -50,7 +54,10 @@ class MailReceivedTriggerTest extends AbstractTriggerTest {
             );
         } else if (testName.equals("singlePartPdfEmailIsReturnedWithItsAttachment")) {
             sendTestEmail("Text Email 1", "sender6@example.com", "Text email body 1");
-            sendSinglePartTestEmail("Scanned Invoice", "sender6@example.com", PDF_FILENAME, PDF_CONTENT, "application/pdf");
+            sendSinglePartTestEmail(
+                "Scanned Invoice", "sender6@example.com", PDF_FILENAME, PDF_CONTENT,
+                "application/pdf"
+            );
             sendTestEmail("Text Email 2", "sender6@example.com", "Text email body 2");
         } else if (testName.equals("singlePartCalendarEmailWithoutFilenameIsDecodedAndAttached")) {
             sendSinglePartTestEmail(
@@ -76,6 +83,14 @@ class MailReceivedTriggerTest extends AbstractTriggerTest {
             for (int i = 1; i <= BURST_SIZE; i++) {
                 sendTestEmail("Burst Email " + i, "sender5@example.com", "Burst email body " + i);
             }
+        } else if (testName.equals("multipartEmailBodyExcludesAttachmentContent")) {
+            sendTestEmailWithAttachment(
+                "Multipart Email With Attachment",
+                "sender9@example.com",
+                "Multipart email body",
+                "report.pdf",
+                "%PDF-test-content".getBytes(StandardCharsets.UTF_8)
+            );
         } else {
             sendTestEmail("First Email", "sender1@example.com", "First test email body");
         }
@@ -133,7 +148,10 @@ class MailReceivedTriggerTest extends AbstractTriggerTest {
 
         @SuppressWarnings("unchecked")
         var latestEmail = (Map<String, Object>) triggerVars.get("latestEmail");
-        assertThat("Latest email subject should match the sent attachment email", latestEmail.get("subject"), is("Email With Attachment"));
+        assertThat(
+            "Latest email subject should match the sent attachment email", latestEmail.get("subject"),
+            is("Email With Attachment")
+        );
 
         @SuppressWarnings("unchecked")
         var attachments = (List<Map<String, Object>>) latestEmail.get("attachments");
@@ -172,7 +190,10 @@ class MailReceivedTriggerTest extends AbstractTriggerTest {
 
         var attachment = attachments.getFirst();
         assertThat("Attachment filename should match", attachment.get("filename"), is(PDF_FILENAME));
-        assertThat("Attachment content type should be the PDF one", (String) attachment.get("contentType"), startsWithIgnoringCase("application/pdf"));
+        assertThat(
+            "Attachment content type should be the PDF one", (String) attachment.get("contentType"),
+            startsWithIgnoringCase("application/pdf")
+        );
         assertThat("Attachment should have a storage uri", attachment.get("uri"), notNullValue());
 
         var uri = URI.create((String) attachment.get("uri"));
@@ -182,7 +203,8 @@ class MailReceivedTriggerTest extends AbstractTriggerTest {
 
     @Test
     @EvaluateTrigger(flow = "flows/mail-received-trigger-imap.yaml", triggerId = "imap-mail-trigger")
-    void singlePartCalendarEmailWithoutFilenameIsDecodedAndAttached(Optional<Execution> optionalExecution) throws Exception {
+    void singlePartCalendarEmailWithoutFilenameIsDecodedAndAttached(Optional<Execution> optionalExecution)
+        throws Exception {
         assertThat(optionalExecution.isPresent(), is(true));
 
         var triggerVars = optionalExecution.get().getTrigger().getVariables();
@@ -199,17 +221,24 @@ class MailReceivedTriggerTest extends AbstractTriggerTest {
         assertThat("The invite should also be returned as an attachment", attachments, hasSize(1));
 
         var attachment = attachments.getFirst();
-        assertThat("Attachment content type should be the calendar one", (String) attachment.get("contentType"), startsWithIgnoringCase("text/calendar"));
+        assertThat(
+            "Attachment content type should be the calendar one", (String) attachment.get("contentType"),
+            startsWithIgnoringCase("text/calendar")
+        );
         assertThat("Attachment should have a storage uri", attachment.get("uri"), notNullValue());
 
         var uri = URI.create((String) attachment.get("uri"));
         var content = IOUtils.toByteArray(storageInterface.get(MAIN_TENANT, null, uri));
-        assertThat("Stored attachment content should match the sent invite", content, is(ICS_CONTENT.getBytes(StandardCharsets.UTF_8)));
+        assertThat(
+            "Stored attachment content should match the sent invite", content,
+            is(ICS_CONTENT.getBytes(StandardCharsets.UTF_8))
+        );
     }
 
     @Test
     @EvaluateTrigger(flow = "flows/mail-received-trigger-imap.yaml", triggerId = "imap-mail-trigger")
-    void singlePartInlineImageWithoutFilenameIsReturnedAsAttachment(Optional<Execution> optionalExecution) throws Exception {
+    void singlePartInlineImageWithoutFilenameIsReturnedAsAttachment(Optional<Execution> optionalExecution)
+        throws Exception {
         assertThat(optionalExecution.isPresent(), is(true));
 
         var triggerVars = optionalExecution.get().getTrigger().getVariables();
@@ -226,9 +255,15 @@ class MailReceivedTriggerTest extends AbstractTriggerTest {
         assertThat("The image should be returned as the email's attachment", attachments, hasSize(1));
 
         var attachment = attachments.getFirst();
-        assertThat("Attachment content type should be the image one", (String) attachment.get("contentType"), startsWithIgnoringCase("image/png"));
+        assertThat(
+            "Attachment content type should be the image one", (String) attachment.get("contentType"),
+            startsWithIgnoringCase("image/png")
+        );
         assertThat("Attachment should have a storage uri", attachment.get("uri"), notNullValue());
-        assertThat("Stored file should fall back to a generated name", ((String) attachment.get("uri")), containsString("attachment-0"));
+        assertThat(
+            "Stored file should fall back to a generated name", ((String) attachment.get("uri")),
+            containsString("attachment-0")
+        );
 
         var uri = URI.create((String) attachment.get("uri"));
         var content = IOUtils.toByteArray(storageInterface.get(MAIN_TENANT, null, uri));
@@ -258,8 +293,14 @@ class MailReceivedTriggerTest extends AbstractTriggerTest {
         var firstAttachment = attachments.get(0);
         var secondAttachment = attachments.get(1);
 
-        assertThat("Both attachments should keep their original filename", firstAttachment.get("filename"), is(ATTACHMENT_FILENAME));
-        assertThat("Both attachments should keep their original filename", secondAttachment.get("filename"), is(ATTACHMENT_FILENAME));
+        assertThat(
+            "Both attachments should keep their original filename", firstAttachment.get("filename"),
+            is(ATTACHMENT_FILENAME)
+        );
+        assertThat(
+            "Both attachments should keep their original filename", secondAttachment.get("filename"),
+            is(ATTACHMENT_FILENAME)
+        );
 
         Object firstUri = firstAttachment.get("uri");
         Object secondUri = secondAttachment.get("uri");
@@ -281,10 +322,16 @@ class MailReceivedTriggerTest extends AbstractTriggerTest {
     @Test
     @EvaluateTrigger(flow = "flows/mail-received-trigger-imap-max-attachment-size.yaml", triggerId = "imap-mail-trigger-max-attachment-size")
     void oversizedAttachmentKeepsMetadataWithNullUri(Optional<Execution> optionalExecution) {
-        // @EvaluateTrigger only exercises the trigger evaluation, not a full flow run through the executor
-        // (see RealTimeTriggerTest for that). A present execution here means the evaluation did not throw
-        // despite the oversized attachment, which is what this test is guarding against.
-        assertThat("Trigger evaluation should still produce an execution despite the oversized attachment", optionalExecution.isPresent(), is(true));
+        // @EvaluateTrigger only exercises the trigger evaluation, not a full flow run
+        // through the executor
+        // (see RealTimeTriggerTest for that). A present execution here means the
+        // evaluation did not throw
+        // despite the oversized attachment, which is what this test is guarding
+        // against.
+        assertThat(
+            "Trigger evaluation should still produce an execution despite the oversized attachment",
+            optionalExecution.isPresent(), is(true)
+        );
 
         var execution = optionalExecution.get();
         Map<String, Object> triggerVars = execution.getTrigger().getVariables();
@@ -302,10 +349,16 @@ class MailReceivedTriggerTest extends AbstractTriggerTest {
         assertThat("Should have exactly one attachment", attachments, hasSize(1));
 
         var attachment = attachments.getFirst();
-        assertThat("Attachment filename should still be reported", attachment.get("filename"), is(OVERSIZED_ATTACHMENT_FILENAME));
+        assertThat(
+            "Attachment filename should still be reported", attachment.get("filename"),
+            is(OVERSIZED_ATTACHMENT_FILENAME)
+        );
         assertThat("Attachment content type should still be reported", attachment.get("contentType"), notNullValue());
         assertThat("Attachment size should still be reported", attachment.get("size"), notNullValue());
-        assertThat("Attachment uri should be null because it exceeds maxAttachmentSize", attachment.get("uri"), nullValue());
+        assertThat(
+            "Attachment uri should be null because it exceeds maxAttachmentSize", attachment.get("uri"),
+            nullValue()
+        );
     }
 
     @Test
@@ -323,5 +376,31 @@ class MailReceivedTriggerTest extends AbstractTriggerTest {
             emails.stream().map(email -> email.get("subject")).toList(),
             is(IntStream.rangeClosed(1, BURST_SIZE).mapToObj(i -> "Burst Email " + i).toList())
         );
+    }
+
+    @Test
+    @EvaluateTrigger(flow = "flows/mail-received-trigger-imap.yaml", triggerId = "imap-mail-trigger")
+    void multipartEmailBodyExcludesAttachmentContent(Optional<Execution> optionalExecution) {
+        assertThat(optionalExecution.isPresent(), is(true));
+
+        var triggerVars = optionalExecution.get().getTrigger().getVariables();
+
+        @SuppressWarnings("unchecked")
+        var emails = (List<Map<String, Object>>) triggerVars.get("emails");
+
+        assertThat(emails, hasSize(1));
+
+        var email = emails.getFirst();
+
+        assertThat(
+            "Body should contain only the email text",
+            email.get("body"), is("Multipart email body")
+        );
+
+        @SuppressWarnings("unchecked")
+        var attachments = (List<Map<String, Object>>) email.get("attachments");
+
+        assertThat("The PDF attachment should still be present", attachments, hasSize(1));
+        assertThat(attachments.getFirst().get("filename"), is("report.pdf"));
     }
 }
