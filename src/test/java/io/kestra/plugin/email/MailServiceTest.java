@@ -73,8 +73,7 @@ class MailServiceTest {
         return MailService.moveAttachmentsToExecution(emailData, runContext, execution);
     }
 
-    // Typed stub: only the three calls used by the move are implemented, the compiler checks their signatures.
-    // Any other Storage method hits the null delegate and fails the test.
+    // Only the calls used by the move are implemented; any other call hits the null delegate.
     private static class RecordingStorage implements Storage {
         private final List<URI> puts = new ArrayList<>();
         private final List<URI> deletes = new ArrayList<>();
