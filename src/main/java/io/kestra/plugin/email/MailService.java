@@ -18,6 +18,7 @@ import java.util.regex.Pattern;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 import io.kestra.core.models.annotations.PluginProperty;
+import io.kestra.core.models.executions.Execution;
 import io.kestra.core.runners.RunContext;
 import io.kestra.core.utils.IdUtils;
 
@@ -54,7 +55,7 @@ public class MailService {
         private final List<EmailData> emails;
     }
 
-    @Builder
+    @Builder(toBuilder = true)
     @Getter
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class EmailData implements io.kestra.core.models.tasks.Output {
@@ -95,7 +96,7 @@ public class MailService {
         private final List<AttachmentInfo> attachments;
     }
 
-    @Builder
+    @Builder(toBuilder = true)
     @Getter
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class AttachmentInfo {
@@ -114,6 +115,42 @@ public class MailService {
         @Schema(title = "Attachment URI", description = "URI of the attachment stored in Kestra internal storage")
         @PluginProperty(group = "advanced")
         private final URI uri;
+    }
+
+    static EmailData moveAttachmentsToExecution(EmailData emailData, RunContext runContext, Execution execution) {
+        var attachments = new ArrayList<AttachmentInfo>();
+
+        for (var attachment : emailData.getAttachments()) {
+            var uri = attachment.getUri();
+            if (uri != null) {
+                var sourcePrefix = "/executions/" + runContext.getTriggerExecutionId() + "/";
+                var targetPrefix = "/executions/" + execution.getId() + "/";
+                var target = uri.toString().replace(sourcePrefix, targetPrefix);
+                try {
+                    if (target.equals(uri.toString())) {
+                        throw new IOException("Attachment URI is not scoped to the realtime trigger execution: " + uri);
+                    }
+                    var targetUri = URI.create(target);
+                    try (var inputStream = runContext.storage().getFile(uri)) {
+                        runContext.storage().putFile(inputStream, targetUri);
+                    }
+                    var sourceUri = uri;
+                    // Switch as soon as the copy succeeded: the source may be unreadable after a failed delete.
+                    uri = targetUri;
+                    try {
+                        runContext.storage().deleteFile(sourceUri);
+                    } catch (IOException e) {
+                        runContext.logger().warn("Failed to delete attachment '{}' from the trigger execution after copying it", attachment.getFilename(), e);
+                    }
+                } catch (IOException e) {
+                    runContext.logger().warn("Failed to move attachment '{}' to the realtime execution", attachment.getFilename(), e);
+                }
+            }
+
+            attachments.add(attachment.toBuilder().uri(uri).build());
+        }
+
+        return emailData.toBuilder().attachments(attachments).build();
     }
 
     @Builder

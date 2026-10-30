@@ -26,13 +26,17 @@ import reactor.core.publisher.Flux;
 import static io.kestra.core.tenant.TenantService.MAIN_TENANT;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 @KestraTest(startRunner = true, startScheduler = true)
 class RealTimeTriggerTest extends AbstractTriggerTest {
     private static final Duration REALTIME_TRIGGER_STARTUP_WAIT = Duration.ofSeconds(5);
+    private static final String OVERSIZED_ATTACHMENT_FILENAME = "big-report.txt";
+    private static final byte[] OVERSIZED_ATTACHMENT_CONTENT = "this content is larger than the configured limit".getBytes(StandardCharsets.UTF_8);
 
     @Inject
     private LocalFlowRepositoryLoader repositoryLoader;
@@ -91,6 +95,11 @@ class RealTimeTriggerTest extends AbstractTriggerTest {
         assertThat("Attachment should have a storage uri", attachment.get("uri"), notNullValue());
 
         URI uri = URI.create((String) attachment.get("uri"));
+        assertThat(
+            "Attachment should be scoped to the started execution",
+            uri.getPath(),
+            is(containsString("/executions/" + execution.getId() + "/"))
+        );
         String content = IOUtils.toString(storageInterface.get(MAIN_TENANT, null, uri), StandardCharsets.UTF_8);
         assertThat("Stored attachment content should match the sent attachment", content, is(ATTACHMENT_CONTENT));
     }
@@ -152,6 +161,27 @@ class RealTimeTriggerTest extends AbstractTriggerTest {
             bogusCharsetExecution.getTrigger().getVariables().get("body"),
             is("Bogus charset body")
         );
+    }
+
+    @Test
+    void RealTimeTriggerOversizedAttachmentDoesNotPreventExecution() throws Exception {
+        var execution = runRealtimeTrigger(
+            "flows/real-time-trigger-imap-max-attachment-size.yaml",
+            "real-time-trigger-imap-max-attachment-size",
+            REALTIME_TRIGGER_STARTUP_WAIT,
+            () -> sendTestEmailWithAttachment(
+                "Email With Oversized Attachment", "sender@example.com", "Oversized attachment email body",
+                OVERSIZED_ATTACHMENT_FILENAME, OVERSIZED_ATTACHMENT_CONTENT
+            )
+        );
+
+        var triggerVars = execution.getTrigger().getVariables();
+        assertThat("Execution should contain the oversized email", triggerVars.get("subject"), is("Email With Oversized Attachment"));
+
+        @SuppressWarnings("unchecked")
+        var attachments = (List<Map<String, Object>>) triggerVars.get("attachments");
+        assertThat("Should have exactly one attachment", attachments, hasSize(1));
+        assertThat("Oversized attachment should keep a null URI", attachments.getFirst().get("uri"), nullValue());
     }
 
     private Execution runRealtimeTrigger(String flowPath, String flowId, Duration startupWait) throws Exception {

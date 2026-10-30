@@ -16,6 +16,7 @@ import io.kestra.core.models.annotations.Example;
 import io.kestra.core.models.annotations.Plugin;
 import io.kestra.core.models.conditions.ConditionContext;
 import io.kestra.core.models.executions.Execution;
+import io.kestra.core.models.executions.ExecutionTrigger;
 import io.kestra.core.models.triggers.RealtimeTriggerInterface;
 import io.kestra.core.models.triggers.TriggerContext;
 import io.kestra.core.models.triggers.TriggerOutput;
@@ -137,7 +138,15 @@ public class RealTimeTrigger extends AbstractMailTrigger
                     "Real-time trigger: New email from '{}' with subject '{}'",
                     emailData.getFrom(), emailData.getSubject()
                 );
-                return TriggerService.generateRealtimeExecution(this, conditionContext, context, emailData);
+                var execution = TriggerService.generateRealtimeExecution(this, conditionContext, context, emailData);
+                var relocatedEmailData = MailService.moveAttachmentsToExecution(
+                    emailData, runContext, execution
+                );
+                return execution.withTrigger(
+                    ExecutionTrigger.of(
+                        this, relocatedEmailData, execution.getTrigger().getLogFile()
+                    )
+                );
             })
             .onErrorContinue(
                 (throwable, o) -> runContext.logger().error("Error in real-time email stream", throwable)
