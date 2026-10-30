@@ -25,6 +25,7 @@ import reactor.core.publisher.Flux;
 
 import static io.kestra.core.tenant.TenantService.MAIN_TENANT;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -127,6 +128,39 @@ class RealTimeTriggerTest extends AbstractTriggerTest {
         URI uri = URI.create((String) attachment.get("uri"));
         byte[] content = IOUtils.toByteArray(storageInterface.get(MAIN_TENANT, null, uri));
         assertThat("Stored attachment content should match the sent PDF", content, is(PDF_CONTENT));
+    }
+
+    @Test
+    void RealTimeTriggerUnknownCharsetDoesNotDropTheOtherEmails() throws Exception {
+        var executions = runRealtimeTrigger(
+            "flows/real-time-trigger-imap-bad-charset.yaml",
+            "real-time-trigger-imap-bad-charset",
+            REALTIME_TRIGGER_STARTUP_WAIT,
+            3,
+            () ->
+            {
+                sendTestEmail("Realtime Good 1", "bogus-charset@example.com", "Realtime good body 1");
+                sendRawTestEmail(UNKNOWN_CHARSET_EMAIL);
+                sendTestEmail("Realtime Good 2", "bogus-charset@example.com", "Realtime good body 2");
+            }
+        );
+
+        assertThat("Every email should trigger, there should not be duplicates", executions, hasSize(3));
+        assertThat(
+            "Every email should trigger despite the unknown charset",
+            executions.stream().map(execution -> execution.getTrigger().getVariables().get("subject")).toList(),
+            containsInAnyOrder("Realtime Good 1", "Bogus Charset", "Realtime Good 2")
+        );
+
+        var bogusCharsetExecution = executions.stream()
+            .filter(execution -> "Bogus Charset".equals(execution.getTrigger().getVariables().get("subject")))
+            .findFirst()
+            .orElseThrow();
+        assertThat(
+            "An email whose charset is unknown to the JVM should still have its body decoded",
+            bogusCharsetExecution.getTrigger().getVariables().get("body"),
+            is("Bogus charset body")
+        );
     }
 
     @Test
