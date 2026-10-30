@@ -56,6 +56,23 @@ public abstract class AbstractTriggerTest extends AbstractEmailTest {
         + "Bogus part\r\n"
         + "--example-boundary--\r\n";
 
+    protected static final String UNKNOWN_CHARSET_TEXT_ATTACHMENT_EMAIL = "From: bogus-charset@example.com\r\n"
+        + "To: test@localhost\r\n"
+        + "Subject: Unknown Charset Text Attachment\r\n"
+        + "MIME-Version: 1.0\r\n"
+        + "Content-Type: multipart/mixed; boundary=\"attachment-boundary\"\r\n"
+        + "\r\n"
+        + "--attachment-boundary\r\n"
+        + "Content-Type: text/plain; charset=UTF-8\r\n"
+        + "\r\n"
+        + "Email body\r\n"
+        + "--attachment-boundary\r\n"
+        + "Content-Type: text/plain; charset=x-bogus; name=\"unknown.txt\"\r\n"
+        + "Content-Disposition: attachment; filename=\"unknown.txt\"\r\n"
+        + "\r\n"
+        + "Attachment body\r\n"
+        + "--attachment-boundary--\r\n";
+
     protected static final String MISSING_BOUNDARY_EMAIL = "From: broken-mime@example.com\r\n"
         + "To: test@localhost\r\n"
         + "Subject: Missing Boundary\r\n"

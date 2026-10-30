@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.PrintStream;
+import java.io.UnsupportedEncodingException;
 import java.net.URI;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
@@ -343,6 +344,15 @@ public class MailService {
                 result.append(extractTextFromMultipart((MimeMultipart) bodyPart.getContent(), runContext));
             } else if (bodyPart.isMimeType("text/*") && !isAttachment(bodyPart)) {
                 result.append(extractTextFromPart(bodyPart, runContext));
+            } else if (bodyPart.isMimeType("text/*")) {
+                try {
+                    result.append(bodyPart.getContent());
+                } catch (UnsupportedEncodingException e) {
+                    runContext.logger().warn(
+                        "Cannot decode text attachment '{}' ({})",
+                        bodyPart.getFileName(), e.getMessage()
+                    );
+                }
             } else {
                 result.append(bodyPart.getContent().toString());
             }
