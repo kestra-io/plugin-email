@@ -49,36 +49,30 @@ class MailReceivedTriggerTest extends AbstractTriggerTest {
 
         if (testName.equals("attachmentIsStoredInInternalStorage")) {
             sendTestEmailWithAttachment(
-                "Email With Attachment", "sender2@example.com", "Attachment email body",
-                ATTACHMENT_FILENAME, ATTACHMENT_CONTENT.getBytes(StandardCharsets.UTF_8)
-            );
+                    "Email With Attachment", "sender2@example.com", "Attachment email body",
+                    ATTACHMENT_FILENAME, ATTACHMENT_CONTENT.getBytes(StandardCharsets.UTF_8));
         } else if (testName.equals("singlePartPdfEmailIsReturnedWithItsAttachment")) {
             sendTestEmail("Text Email 1", "sender6@example.com", "Text email body 1");
             sendSinglePartTestEmail(
-                "Scanned Invoice", "sender6@example.com", PDF_FILENAME, PDF_CONTENT,
-                "application/pdf"
-            );
+                    "Scanned Invoice", "sender6@example.com", PDF_FILENAME, PDF_CONTENT,
+                    "application/pdf");
             sendTestEmail("Text Email 2", "sender6@example.com", "Text email body 2");
         } else if (testName.equals("singlePartCalendarEmailWithoutFilenameIsDecodedAndAttached")) {
             sendSinglePartTestEmail(
-                "Team Invite", "sender7@example.com", null, ICS_CONTENT.getBytes(StandardCharsets.UTF_8),
-                "text/calendar; charset=UTF-8; method=REQUEST"
-            );
+                    "Team Invite", "sender7@example.com", null, ICS_CONTENT.getBytes(StandardCharsets.UTF_8),
+                    "text/calendar; charset=UTF-8; method=REQUEST");
         } else if (testName.equals("singlePartInlineImageWithoutFilenameIsReturnedAsAttachment")) {
             sendSinglePartTestEmail("Inline Image", "sender8@example.com", null, PNG_CONTENT, "image/png");
         } else if (testName.equals("duplicateAttachmentFilenamesGetDistinctUris")) {
             sendTestEmailWithAttachments(
-                "Email With Duplicate Attachment Names", "sender3@example.com", "Duplicate attachment names body",
-                List.of(
-                    new Attachment(ATTACHMENT_FILENAME, "content-1".getBytes(StandardCharsets.UTF_8)),
-                    new Attachment(ATTACHMENT_FILENAME, "content-2".getBytes(StandardCharsets.UTF_8))
-                )
-            );
+                    "Email With Duplicate Attachment Names", "sender3@example.com", "Duplicate attachment names body",
+                    List.of(
+                            new Attachment(ATTACHMENT_FILENAME, "content-1".getBytes(StandardCharsets.UTF_8)),
+                            new Attachment(ATTACHMENT_FILENAME, "content-2".getBytes(StandardCharsets.UTF_8))));
         } else if (testName.equals("oversizedAttachmentKeepsMetadataWithNullUri")) {
             sendTestEmailWithAttachment(
-                "Email With Oversized Attachment", "sender4@example.com", "Oversized attachment body",
-                OVERSIZED_ATTACHMENT_FILENAME, OVERSIZED_ATTACHMENT_CONTENT.getBytes(StandardCharsets.UTF_8)
-            );
+                    "Email With Oversized Attachment", "sender4@example.com", "Oversized attachment body",
+                    OVERSIZED_ATTACHMENT_FILENAME, OVERSIZED_ATTACHMENT_CONTENT.getBytes(StandardCharsets.UTF_8));
         } else if (testName.equals("everyEmailOfABurstIsReturned")) {
             for (int i = 1; i <= BURST_SIZE; i++) {
                 sendTestEmail("Burst Email " + i, "sender5@example.com", "Burst email body " + i);
@@ -94,6 +88,13 @@ class MailReceivedTriggerTest extends AbstractTriggerTest {
             sendTestEmail("Good Email 3", "sender10@example.com", "Good email body 3");
             sendRawTestEmail(MISSING_BOUNDARY_EMAIL);
             sendTestEmail("Good Email 4", "sender10@example.com", "Good email body 4");
+        } else if (testName.equals("multipartEmailBodyExcludesAttachmentContent")) {
+            sendTestEmailWithAttachment(
+                    "Multipart Email With Attachment",
+                    "sender9@example.com",
+                    "Multipart email body",
+                    "report.pdf",
+                    "%PDF-test-content".getBytes(StandardCharsets.UTF_8));
         } else {
             sendTestEmail("First Email", "sender1@example.com", "First test email body");
         }
@@ -114,10 +115,9 @@ class MailReceivedTriggerTest extends AbstractTriggerTest {
         assertThat("Latest email should have a subject", latestEmail.get("subject"), notNullValue());
         assertThat("Latest email should have a from address", latestEmail.get("from"), notNullValue());
         assertThat(
-            "Latest email subject should be one of the sent emails",
-            latestEmail.get("subject"),
-            is("First Email")
-        );
+                "Latest email subject should be one of the sent emails",
+                latestEmail.get("subject"),
+                is("First Email"));
     }
 
     @Test
@@ -135,10 +135,9 @@ class MailReceivedTriggerTest extends AbstractTriggerTest {
         assertThat("Latest email should have a subject", latestEmail.get("subject"), notNullValue());
         assertThat("Latest email should have a from address", latestEmail.get("from"), notNullValue());
         assertThat(
-            "Latest email subject should be one of the sent emails",
-            latestEmail.get("subject"),
-            is("First Email")
-        );
+                "Latest email subject should be one of the sent emails",
+                latestEmail.get("subject"),
+                is("First Email"));
     }
 
     @Test
@@ -152,9 +151,8 @@ class MailReceivedTriggerTest extends AbstractTriggerTest {
         @SuppressWarnings("unchecked")
         var latestEmail = (Map<String, Object>) triggerVars.get("latestEmail");
         assertThat(
-            "Latest email subject should match the sent attachment email", latestEmail.get("subject"),
-            is("Email With Attachment")
-        );
+                "Latest email subject should match the sent attachment email", latestEmail.get("subject"),
+                is("Email With Attachment"));
 
         @SuppressWarnings("unchecked")
         var attachments = (List<Map<String, Object>>) latestEmail.get("attachments");
@@ -179,10 +177,9 @@ class MailReceivedTriggerTest extends AbstractTriggerTest {
         @SuppressWarnings("unchecked")
         var emails = (List<Map<String, Object>>) triggerVars.get("emails");
         assertThat(
-            "Every email should be returned, including the one whose only part is a PDF",
-            emails.stream().map(email -> email.get("subject")).toList(),
-            contains("Text Email 1", "Scanned Invoice", "Text Email 2")
-        );
+                "Every email should be returned, including the one whose only part is a PDF",
+                emails.stream().map(email -> email.get("subject")).toList(),
+                contains("Text Email 1", "Scanned Invoice", "Text Email 2"));
 
         var pdfEmail = emails.get(1);
         assertThat("An email without a text part should have an empty body", pdfEmail.get("body"), is(""));
@@ -194,9 +191,8 @@ class MailReceivedTriggerTest extends AbstractTriggerTest {
         var attachment = attachments.getFirst();
         assertThat("Attachment filename should match", attachment.get("filename"), is(PDF_FILENAME));
         assertThat(
-            "Attachment content type should be the PDF one", (String) attachment.get("contentType"),
-            startsWithIgnoringCase("application/pdf")
-        );
+                "Attachment content type should be the PDF one", (String) attachment.get("contentType"),
+                startsWithIgnoringCase("application/pdf"));
         assertThat("Attachment should have a storage uri", attachment.get("uri"), notNullValue());
 
         var uri = URI.create((String) attachment.get("uri"));
@@ -207,7 +203,7 @@ class MailReceivedTriggerTest extends AbstractTriggerTest {
     @Test
     @EvaluateTrigger(flow = "flows/mail-received-trigger-imap.yaml", triggerId = "imap-mail-trigger")
     void singlePartCalendarEmailWithoutFilenameIsDecodedAndAttached(Optional<Execution> optionalExecution)
-        throws Exception {
+            throws Exception {
         assertThat(optionalExecution.isPresent(), is(true));
 
         var triggerVars = optionalExecution.get().getTrigger().getVariables();
@@ -225,23 +221,21 @@ class MailReceivedTriggerTest extends AbstractTriggerTest {
 
         var attachment = attachments.getFirst();
         assertThat(
-            "Attachment content type should be the calendar one", (String) attachment.get("contentType"),
-            startsWithIgnoringCase("text/calendar")
-        );
+                "Attachment content type should be the calendar one", (String) attachment.get("contentType"),
+                startsWithIgnoringCase("text/calendar"));
         assertThat("Attachment should have a storage uri", attachment.get("uri"), notNullValue());
 
         var uri = URI.create((String) attachment.get("uri"));
         var content = IOUtils.toByteArray(storageInterface.get(MAIN_TENANT, null, uri));
         assertThat(
-            "Stored attachment content should match the sent invite", content,
-            is(ICS_CONTENT.getBytes(StandardCharsets.UTF_8))
-        );
+                "Stored attachment content should match the sent invite", content,
+                is(ICS_CONTENT.getBytes(StandardCharsets.UTF_8)));
     }
 
     @Test
     @EvaluateTrigger(flow = "flows/mail-received-trigger-imap.yaml", triggerId = "imap-mail-trigger")
     void singlePartInlineImageWithoutFilenameIsReturnedAsAttachment(Optional<Execution> optionalExecution)
-        throws Exception {
+            throws Exception {
         assertThat(optionalExecution.isPresent(), is(true));
 
         var triggerVars = optionalExecution.get().getTrigger().getVariables();
@@ -259,14 +253,12 @@ class MailReceivedTriggerTest extends AbstractTriggerTest {
 
         var attachment = attachments.getFirst();
         assertThat(
-            "Attachment content type should be the image one", (String) attachment.get("contentType"),
-            startsWithIgnoringCase("image/png")
-        );
+                "Attachment content type should be the image one", (String) attachment.get("contentType"),
+                startsWithIgnoringCase("image/png"));
         assertThat("Attachment should have a storage uri", attachment.get("uri"), notNullValue());
         assertThat(
-            "Stored file should fall back to a generated name", ((String) attachment.get("uri")),
-            containsString("attachment-0")
-        );
+                "Stored file should fall back to a generated name", ((String) attachment.get("uri")),
+                containsString("attachment-0"));
 
         var uri = URI.create((String) attachment.get("uri"));
         var content = IOUtils.toByteArray(storageInterface.get(MAIN_TENANT, null, uri));
@@ -284,10 +276,9 @@ class MailReceivedTriggerTest extends AbstractTriggerTest {
         @SuppressWarnings("unchecked")
         var latestEmail = (Map<String, Object>) triggerVars.get("latestEmail");
         assertThat(
-            "Latest email subject should match the sent duplicate-attachment email",
-            latestEmail.get("subject"),
-            is("Email With Duplicate Attachment Names")
-        );
+                "Latest email subject should match the sent duplicate-attachment email",
+                latestEmail.get("subject"),
+                is("Email With Duplicate Attachment Names"));
 
         @SuppressWarnings("unchecked")
         var attachments = (List<Map<String, Object>>) latestEmail.get("attachments");
@@ -297,13 +288,11 @@ class MailReceivedTriggerTest extends AbstractTriggerTest {
         var secondAttachment = attachments.get(1);
 
         assertThat(
-            "Both attachments should keep their original filename", firstAttachment.get("filename"),
-            is(ATTACHMENT_FILENAME)
-        );
+                "Both attachments should keep their original filename", firstAttachment.get("filename"),
+                is(ATTACHMENT_FILENAME));
         assertThat(
-            "Both attachments should keep their original filename", secondAttachment.get("filename"),
-            is(ATTACHMENT_FILENAME)
-        );
+                "Both attachments should keep their original filename", secondAttachment.get("filename"),
+                is(ATTACHMENT_FILENAME));
 
         Object firstUri = firstAttachment.get("uri");
         Object secondUri = secondAttachment.get("uri");
@@ -312,11 +301,9 @@ class MailReceivedTriggerTest extends AbstractTriggerTest {
         assertThat("Same-named attachments must not collide on the same storage uri", firstUri, is(not(secondUri)));
 
         String firstContent = IOUtils.toString(
-            storageInterface.get(MAIN_TENANT, null, URI.create((String) firstUri)), StandardCharsets.UTF_8
-        );
+                storageInterface.get(MAIN_TENANT, null, URI.create((String) firstUri)), StandardCharsets.UTF_8);
         String secondContent = IOUtils.toString(
-            storageInterface.get(MAIN_TENANT, null, URI.create((String) secondUri)), StandardCharsets.UTF_8
-        );
+                storageInterface.get(MAIN_TENANT, null, URI.create((String) secondUri)), StandardCharsets.UTF_8);
 
         assertThat("First attachment content should match what was sent", firstContent, is("content-1"));
         assertThat("Second attachment content should match what was sent", secondContent, is("content-2"));
@@ -332,9 +319,8 @@ class MailReceivedTriggerTest extends AbstractTriggerTest {
         // despite the oversized attachment, which is what this test is guarding
         // against.
         assertThat(
-            "Trigger evaluation should still produce an execution despite the oversized attachment",
-            optionalExecution.isPresent(), is(true)
-        );
+                "Trigger evaluation should still produce an execution despite the oversized attachment",
+                optionalExecution.isPresent(), is(true));
 
         var execution = optionalExecution.get();
         Map<String, Object> triggerVars = execution.getTrigger().getVariables();
@@ -342,10 +328,9 @@ class MailReceivedTriggerTest extends AbstractTriggerTest {
         @SuppressWarnings("unchecked")
         var latestEmail = (Map<String, Object>) triggerVars.get("latestEmail");
         assertThat(
-            "Latest email subject should match the sent oversized-attachment email",
-            latestEmail.get("subject"),
-            is("Email With Oversized Attachment")
-        );
+                "Latest email subject should match the sent oversized-attachment email",
+                latestEmail.get("subject"),
+                is("Email With Oversized Attachment"));
 
         @SuppressWarnings("unchecked")
         var attachments = (List<Map<String, Object>>) latestEmail.get("attachments");
@@ -353,15 +338,13 @@ class MailReceivedTriggerTest extends AbstractTriggerTest {
 
         var attachment = attachments.getFirst();
         assertThat(
-            "Attachment filename should still be reported", attachment.get("filename"),
-            is(OVERSIZED_ATTACHMENT_FILENAME)
-        );
+                "Attachment filename should still be reported", attachment.get("filename"),
+                is(OVERSIZED_ATTACHMENT_FILENAME));
         assertThat("Attachment content type should still be reported", attachment.get("contentType"), notNullValue());
         assertThat("Attachment size should still be reported", attachment.get("size"), notNullValue());
         assertThat(
-            "Attachment uri should be null because it exceeds maxAttachmentSize", attachment.get("uri"),
-            nullValue()
-        );
+                "Attachment uri should be null because it exceeds maxAttachmentSize", attachment.get("uri"),
+                nullValue());
     }
 
     @Test
@@ -375,10 +358,9 @@ class MailReceivedTriggerTest extends AbstractTriggerTest {
         @SuppressWarnings("unchecked")
         var emails = (List<Map<String, Object>>) triggerVars.get("emails");
         assertThat(
-            "Emails should be returned oldest first",
-            emails.stream().map(email -> email.get("subject")).toList(),
-            is(IntStream.rangeClosed(1, BURST_SIZE).mapToObj(i -> "Burst Email " + i).toList())
-        );
+                "Emails should be returned oldest first",
+                emails.stream().map(email -> email.get("subject")).toList(),
+                is(IntStream.rangeClosed(1, BURST_SIZE).mapToObj(i -> "Burst Email " + i).toList()));
     }
 
     @Test
@@ -392,6 +374,8 @@ class MailReceivedTriggerTest extends AbstractTriggerTest {
             triggerVars.get("total"),
             is(4)
         );
+                "Body should contain only the email text",
+                email.get("body"), is("Multipart email body"));
 
         @SuppressWarnings("unchecked")
         var emails = (List<Map<String, Object>>) triggerVars.get("emails");

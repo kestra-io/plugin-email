@@ -178,8 +178,8 @@ public class MailService {
     private static final Pattern UNSAFE_FILENAME_CHARS = Pattern.compile("[^a-zA-Z0-9._-]");
 
     /**
-     * Default cap applied to a single attachment before it is stored in internal
-     * storage: 25MB.
+    * Default cap applied to a single attachment before it is stored in internal
+    * storage: 25MB.
      */
     public static final long DEFAULT_MAX_ATTACHMENT_SIZE = 25L * 1024 * 1024;
 
