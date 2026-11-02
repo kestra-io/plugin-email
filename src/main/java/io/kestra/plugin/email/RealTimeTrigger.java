@@ -16,6 +16,7 @@ import io.kestra.core.models.annotations.Example;
 import io.kestra.core.models.annotations.Plugin;
 import io.kestra.core.models.conditions.ConditionContext;
 import io.kestra.core.models.executions.Execution;
+import io.kestra.core.models.executions.ExecutionTrigger;
 import io.kestra.core.models.triggers.RealtimeTriggerInterface;
 import io.kestra.core.models.triggers.TriggerContext;
 import io.kestra.core.models.triggers.TriggerOutput;
@@ -137,7 +138,15 @@ public class RealTimeTrigger extends AbstractMailTrigger
                     "Real-time trigger: New email from '{}' with subject '{}'",
                     emailData.getFrom(), emailData.getSubject()
                 );
-                return TriggerService.generateRealtimeExecution(this, conditionContext, context, emailData);
+                var execution = TriggerService.generateRealtimeExecution(this, conditionContext, context, emailData);
+                var relocatedEmailData = MailService.moveAttachmentsToExecution(
+                    emailData, runContext, execution
+                );
+                return execution.withTrigger(
+                    ExecutionTrigger.of(
+                        this, relocatedEmailData, execution.getTrigger().getLogFile()
+                    )
+                );
             })
             .onErrorContinue(
                 (throwable, o) -> runContext.logger().error("Error in real-time email stream", throwable)
@@ -196,7 +205,18 @@ public class RealTimeTrigger extends AbstractMailTrigger
                                     break;
 
                                 if (message instanceof MimeMessage mimeMessage) {
-                                    MailService.EmailData emailData = MailService.parseEmailData(mimeMessage, runContext, config.maxAttachmentSize);
+                                    MailService.EmailData emailData = null;
+                                    try {
+                                        emailData = MailService.parseEmailData(mimeMessage, runContext, config.maxAttachmentSize);
+                                    } catch (FolderClosedException | StoreClosedException ex) {
+                                        throw ex;
+                                    } catch (Exception ex) {
+                                        if (!folder.isOpen()) {
+                                            throw new FolderClosedException(folder, "Folder closed while processing message");
+                                        }
+                                        // Skip malformed content while preserving the rest of the IDLE batch.
+                                        runContext.logger().warn("Failed to parse email with Message-ID '{}' - skipping it", mimeMessage.getMessageID(), ex);
+                                    }
                                     if (emailData != null) {
                                         runContext.logger().info(
                                             "IMAP IDLE: New email - Subject: '{}', From: '{}'",
@@ -209,6 +229,7 @@ public class RealTimeTrigger extends AbstractMailTrigger
                         } catch (Exception ex) {
                             if (isActive.get()) {
                                 runContext.logger().error("Error processing new messages", ex);
+                                sink.error(ex);
                             }
                         }
                     }

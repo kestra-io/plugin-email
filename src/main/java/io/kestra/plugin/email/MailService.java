@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.PrintStream;
+import java.io.UnsupportedEncodingException;
 import java.net.URI;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
@@ -17,6 +18,7 @@ import java.util.regex.Pattern;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 import io.kestra.core.models.annotations.PluginProperty;
+import io.kestra.core.models.executions.Execution;
 import io.kestra.core.runners.RunContext;
 import io.kestra.core.utils.IdUtils;
 
@@ -53,7 +55,7 @@ public class MailService {
         private final List<EmailData> emails;
     }
 
-    @Builder
+    @Builder(toBuilder = true)
     @Getter
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class EmailData implements io.kestra.core.models.tasks.Output {
@@ -94,7 +96,7 @@ public class MailService {
         private final List<AttachmentInfo> attachments;
     }
 
-    @Builder
+    @Builder(toBuilder = true)
     @Getter
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class AttachmentInfo {
@@ -113,6 +115,42 @@ public class MailService {
         @Schema(title = "Attachment URI", description = "URI of the attachment stored in Kestra internal storage")
         @PluginProperty(group = "advanced")
         private final URI uri;
+    }
+
+    static EmailData moveAttachmentsToExecution(EmailData emailData, RunContext runContext, Execution execution) {
+        var attachments = new ArrayList<AttachmentInfo>();
+
+        for (var attachment : emailData.getAttachments()) {
+            var uri = attachment.getUri();
+            if (uri != null) {
+                var sourcePrefix = "/executions/" + runContext.getTriggerExecutionId() + "/";
+                var targetPrefix = "/executions/" + execution.getId() + "/";
+                var target = uri.toString().replace(sourcePrefix, targetPrefix);
+                try {
+                    if (target.equals(uri.toString())) {
+                        throw new IOException("Attachment URI is not scoped to the realtime trigger execution: " + uri);
+                    }
+                    var targetUri = URI.create(target);
+                    try (var inputStream = runContext.storage().getFile(uri)) {
+                        runContext.storage().putFile(inputStream, targetUri);
+                    }
+                    var sourceUri = uri;
+                    // Switch as soon as the copy succeeded: the source may be unreadable after a failed delete.
+                    uri = targetUri;
+                    try {
+                        runContext.storage().deleteFile(sourceUri);
+                    } catch (IOException e) {
+                        runContext.logger().warn("Failed to delete attachment '{}' from the trigger execution after copying it", attachment.getFilename(), e);
+                    }
+                } catch (IOException e) {
+                    runContext.logger().warn("Failed to move attachment '{}' to the realtime execution", attachment.getFilename(), e);
+                }
+            }
+
+            attachments.add(attachment.toBuilder().uri(uri).build());
+        }
+
+        return emailData.toBuilder().attachments(attachments).build();
     }
 
     @Builder
@@ -274,16 +312,16 @@ public class MailService {
                 : ZonedDateTime.now();
 
         return EmailData.builder()
-                .subject(message.getSubject())
-                .from(getAddressString(message.getFrom()))
-                .to(getAddressList(message.getRecipients(Message.RecipientType.TO)))
-                .cc(getAddressList(message.getRecipients(Message.RecipientType.CC)))
-                .bcc(getAddressList(message.getRecipients(Message.RecipientType.BCC)))
-                .date(date)
-                .body(extractTextContent(message))
-                .messageId(message.getMessageID())
-                .attachments(extractAttachments(message, runContext, maxAttachmentSize))
-                .build();
+            .subject(message.getSubject())
+            .from(getAddressString(message.getFrom()))
+            .to(getAddressList(message.getRecipients(Message.RecipientType.TO)))
+            .cc(getAddressList(message.getRecipients(Message.RecipientType.CC)))
+            .bcc(getAddressList(message.getRecipients(Message.RecipientType.BCC)))
+            .date(date)
+            .body(extractTextContent(message, runContext))
+            .messageId(message.getMessageID())
+            .attachments(extractAttachments(message, runContext, maxAttachmentSize))
+            .build();
     }
 
     private static String getAddressString(Address[] addresses) {
@@ -302,19 +340,30 @@ public class MailService {
                 .toList();
     }
 
-    private static String extractTextContent(Message message) throws MessagingException, IOException {
+    private static String extractTextContent(Message message, RunContext runContext) throws MessagingException, IOException {
         if (message.isMimeType("multipart/*")) {
             MimeMultipart multipart = (MimeMultipart) message.getContent();
-            return extractTextFromMultipart(multipart);
+            return extractTextFromMultipart(multipart, runContext);
         }
-        if (message.getContent() instanceof String text) {
-            return text;
+        return extractTextFromPart(message, runContext);
+    }
+
+    // getContent() throws for a charset unknown to the JVM.
+    private static String extractTextFromPart(Part part, RunContext runContext) throws MessagingException, IOException {
+        try {
+            if (part.getContent() instanceof String text) {
+                return text;
+            }
+        } catch (IOException e) {
+            runContext.logger().warn(
+                "Cannot decode text part '{}' ({}); decoding it as {}",
+                part.getContentType(), e.getMessage(), charsetOf(part)
+            );
         }
-        // Types without a content handler (e.g. text/calendar) come back as a raw
-        // stream.
-        if (message.isMimeType("text/*")) {
-            try (var in = message.getInputStream()) {
-                return new String(in.readAllBytes(), charsetOf(message));
+        // Types without a content handler (e.g. text/calendar) come back as a raw stream.
+        if (part.isMimeType("text/*")) {
+            try (var in = part.getInputStream()) {
+                return new String(in.readAllBytes(), charsetOf(part));
             }
         }
         return "";
@@ -332,7 +381,8 @@ public class MailService {
         return StandardCharsets.UTF_8;
     }
 
-    private static String extractTextFromMultipart(MimeMultipart multipart) throws MessagingException, IOException {
+    private static String extractTextFromMultipart(MimeMultipart multipart, RunContext runContext)
+        throws MessagingException, IOException {
         StringBuilder result = new StringBuilder();
         int count = multipart.getCount();
 
@@ -344,16 +394,20 @@ public class MailService {
             }
 
             if (bodyPart.isMimeType("multipart/*")) {
-                result.append(extractTextFromMultipart((MimeMultipart) bodyPart.getContent()));
+                result.append(extractTextFromMultipart((MimeMultipart) bodyPart.getContent(), runContext));
+            } else if (bodyPart.isMimeType("text/*") && !isAttachment(bodyPart)) {
+                result.append(extractTextFromPart(bodyPart, runContext));
             } else if (bodyPart.isMimeType("text/*")) {
-                Object content = bodyPart.getContent();
-                if (content instanceof String text) {
-                    result.append(text);
-                } else {
-                    try (var inputStream = bodyPart.getInputStream()) {
-                        result.append(new String(inputStream.readAllBytes(), charsetOf(bodyPart)));
-                    }
+                try {
+                    result.append(bodyPart.getContent());
+                } catch (UnsupportedEncodingException e) {
+                    runContext.logger().warn(
+                        "Cannot decode text attachment '{}' ({})",
+                        bodyPart.getFileName(), e.getMessage()
+                    );
                 }
+            } else {
+                result.append(bodyPart.getContent().toString());
             }
         }
 
@@ -368,11 +422,20 @@ public class MailService {
         if (message.isMimeType("multipart/*")) {
             MimeMultipart multipart = (MimeMultipart) message.getContent();
             extractAttachmentsFromMultipart(multipart, attachments, runContext, maxAttachmentSize);
-        } else if (isAttachment(message) || !(message.getContent() instanceof String)) {
+        } else if (isAttachment(message) || isNotTextContent(message)) {
             attachments.add(extractAttachment(message, attachments.size(), runContext, maxAttachmentSize));
         }
 
         return attachments;
+    }
+
+    private static boolean isNotTextContent(Part part) throws MessagingException, IOException {
+        try {
+            return !(part.getContent() instanceof String);
+        } catch (IOException e) {
+            // The raw text is decoded into the body instead of being reported as an attachment.
+            return false;
+        }
     }
 
     private static void extractAttachmentsFromMultipart(MimeMultipart multipart, List<AttachmentInfo> attachments,
@@ -559,7 +622,18 @@ public class MailService {
 
                         if (messageDate.isAfter(lastCheckTime)) {
                             isNew = true;
-                            EmailData emailData = parseEmailData(mimeMessage, runContext, maxAttachmentSize);
+                            EmailData emailData = null;
+                            try {
+                                emailData = parseEmailData(mimeMessage, runContext, maxAttachmentSize);
+                            } catch (FolderClosedException | StoreClosedException e) {
+                                throw e;
+                            } catch (Exception e) {
+                                if (!mailFolder.isOpen()) {
+                                    throw new FolderClosedException(mailFolder, "Folder closed while processing message");
+                                }
+                                // Skip malformed content while preserving the rest of the poll.
+                                runContext.logger().warn("Failed to parse email with Message-ID '{}' - skipping it", mimeMessage.getMessageID(), e);
+                            }
                             if (emailData != null) {
                                 newEmails.addFirst(emailData);
                                 runContext.logger().info(
