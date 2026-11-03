@@ -87,6 +87,9 @@ class MailReceivedTriggerTest extends AbstractTriggerTest {
             sendTestEmail("Good Email 3", "sender10@example.com", "Good email body 3");
             sendRawTestEmail(MISSING_BOUNDARY_EMAIL);
             sendTestEmail("Good Email 4", "sender10@example.com", "Good email body 4");
+        } else if (testName.equals("multipartBodyExcludesAttachments")) {
+            sendTestEmailWithAttachment("Binary Attachment", "sender11@example.com", "Email body", PDF_FILENAME, PDF_CONTENT);
+            sendRawTestEmail(TEXT_ATTACHMENT_EMAIL);
         } else {
             sendTestEmail("First Email", "sender1@example.com", "First test email body");
         }
@@ -407,5 +410,19 @@ class MailReceivedTriggerTest extends AbstractTriggerTest {
             emails.stream().map(email -> email.get("subject")).toList(),
             contains("Good Email 3", "Good Email 4")
         );
+    }
+
+    @Test
+    @EvaluateTrigger(flow = "flows/mail-received-trigger-imap.yaml", triggerId = "imap-mail-trigger")
+    void multipartBodyExcludesAttachments(Optional<Execution> optionalExecution) {
+        assertThat(optionalExecution.isPresent(), is(true));
+
+        @SuppressWarnings("unchecked")
+        var emails = (List<Map<String, Object>>) optionalExecution.get().getTrigger().getVariables().get("emails");
+        assertThat(emails, hasSize(2));
+        for (var email : emails) {
+            assertThat((String) email.get("subject"), email.get("body"), is("Email body"));
+            assertThat((String) email.get("subject"), (List<?>) email.get("attachments"), hasSize(1));
+        }
     }
 }

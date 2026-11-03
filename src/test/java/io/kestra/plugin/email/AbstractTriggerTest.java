@@ -73,6 +73,27 @@ public abstract class AbstractTriggerTest extends AbstractEmailTest {
         + "Attachment body\r\n"
         + "--attachment-boundary--\r\n";
 
+    protected static final String TEXT_ATTACHMENT_EMAIL = String.join(
+        "\r\n",
+        "From: text-attachment@example.com",
+        "To: test@localhost",
+        "Subject: Text Attachment",
+        "MIME-Version: 1.0",
+        "Content-Type: multipart/mixed; boundary=\"text-attachment-boundary\"",
+        "",
+        "--text-attachment-boundary",
+        "Content-Type: text/plain; charset=UTF-8",
+        "",
+        "Email body",
+        "--text-attachment-boundary",
+        "Content-Type: text/plain; charset=UTF-8; name=\"notes.txt\"",
+        "Content-Disposition: attachment; filename=\"notes.txt\"",
+        "",
+        "Attachment body",
+        "--text-attachment-boundary--",
+        ""
+    );
+
     protected static final String MISSING_BOUNDARY_EMAIL = "From: broken-mime@example.com\r\n"
         + "To: test@localhost\r\n"
         + "Subject: Missing Boundary\r\n"
