@@ -563,6 +563,7 @@ public class MailService {
             runContext.logger().info("Checking for emails newer than: {}", lastCheckTime);
 
             int checkedMessages = 0;
+            var consecutiveOldMessages = 0;
             for (int messageNumber = messageCount; messageNumber >= 1; messageNumber--) {
                 Message message = mailFolder.getMessage(messageNumber);
                 checkedMessages++;
@@ -612,8 +613,9 @@ public class MailService {
                     }
                 }
 
-                // Arrival order and message dates can disagree, so an older message only ends the scan once the newest ones have been checked.
-                if (!isNew && checkedMessages >= MIN_MESSAGES_TO_CHECK) {
+                // Arrival order and message dates can disagree, so only a run of older messages ends the scan.
+                consecutiveOldMessages = isNew ? 0 : consecutiveOldMessages + 1;
+                if (consecutiveOldMessages >= MIN_MESSAGES_TO_CHECK) {
                     break;
                 }
             }
