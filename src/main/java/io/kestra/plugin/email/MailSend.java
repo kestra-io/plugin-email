@@ -244,7 +244,8 @@ public class MailSend extends Task implements RunnableTask<VoidOutput> {
     @Schema(
         title = "Trusted SSL/TLS hosts",
         description = """
-            Hosts whose TLS certificate is accepted without checking it against the JVM truststore. Entries must match `host` exactly (same name or IP).
+            Hosts whose TLS certificate is accepted without checking it against the JVM truststore. The host name in the certificate is still checked unless `verifyServerIdentity` is false.
+            Entries must match `host` exactly (same name or IP). Once the list is set, only these hosts are accepted: a `host` that is not listed fails with `Server is not trusted: <host>`, even if its certificate is valid.
             When unset, the server certificate must chain to a CA in the JVM truststore. Since plugin version 1.5.4, a self-signed or private-CA certificate fails with `PKIX path building failed` unless its host is listed here or its CA is added to the JVM truststore; earlier versions accepted any certificate. Adding the CA to the JVM truststore is the more secure option."""
     )
     @PluginProperty(group = "connection")
