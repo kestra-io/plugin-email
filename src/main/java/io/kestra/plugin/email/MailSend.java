@@ -160,7 +160,7 @@ import static io.kestra.core.utils.Rethrow.throwFunction;
                 """
         ),
         @Example(
-            title = "Send an email using an internal mail server with self-signed certificate and specific trusted hosts.",
+            title = "Send an email through an internal mail server whose certificate is not in the JVM truststore.",
             full = true,
             code = """
                 id: send_email_internal
@@ -178,11 +178,8 @@ import static io.kestra.core.utils.Rethrow.throwFunction;
                     transportStrategy: SMTP_TLS
                     subject: "Internal notification"
                     htmlTextContent: "This email was sent from an internal mail server"
-                    verifyServerIdentity: false
                     trustedHosts:
                       - mail.company.local
-                      - smtp.company.local
-                      - 192.168.1.100
                 """
         )
     },
@@ -236,7 +233,9 @@ public class MailSend extends Task implements RunnableTask<VoidOutput> {
 
     @Schema(
         title = "Verify server identity",
-        description = "Performs TLS server identity checks. Defaults to true; disable only for self-signed or internal servers"
+        description = """
+            Checks that the host name in the server certificate matches `host`. Defaults to true.
+            It does not decide whether the certificate itself is trusted: setting it to false does not make a self-signed or private-CA certificate work (use `trustedHosts` or the JVM truststore for that). Disable it only when the certificate name does not match `host`."""
     )
     @Builder.Default
     @PluginProperty(group = "connection")
@@ -244,7 +243,10 @@ public class MailSend extends Task implements RunnableTask<VoidOutput> {
 
     @Schema(
         title = "Trusted SSL/TLS hosts",
-        description = "Restrict TLS trust to the specified hosts when working with internal or self-signed servers"
+        description = """
+            Hosts whose TLS certificate is accepted without checking it against the JVM truststore. The host name in the certificate is still checked unless `verifyServerIdentity` is false.
+            Entries must match `host` exactly (same name or IP). Once the list is set, only these hosts are accepted: a `host` that is not listed fails with `Server is not trusted: <host>`, even if its certificate is valid.
+            When unset, the server certificate must chain to a CA in the JVM truststore. Since plugin version 1.5.4, a self-signed or private-CA certificate fails with `PKIX path building failed` unless its host is listed here or its CA is added to the JVM truststore; earlier versions accepted any certificate. Adding the CA to the JVM truststore is the more secure option."""
     )
     @PluginProperty(group = "connection")
     private Property<List<String>> trustedHosts;
