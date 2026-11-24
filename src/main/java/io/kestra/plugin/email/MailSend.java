@@ -245,7 +245,7 @@ public class MailSend extends Task implements RunnableTask<VoidOutput> {
         title = "Trusted SSL/TLS hosts",
         description = """
             Hosts whose TLS certificate is accepted without checking it against the JVM truststore. The host name in the certificate is still checked unless `verifyServerIdentity` is false.
-            Entries must match `host` exactly (same name or IP). Once the list is set, only these hosts are accepted: a `host` that is not listed fails with `Server is not trusted: <host>`, even if its certificate is valid.
+            Entries are matched to `host` ignoring case (same name or IP; an IP does not match a DNS name). A `host` that is not listed is validated against the JVM truststore, exactly as if `trustedHosts` were unset, so setting this in plugin defaults does not affect tasks that send through other servers. Use `*` to accept any certificate.
             When unset, the server certificate must chain to a CA in the JVM truststore. Since plugin version 1.5.4, a self-signed or private-CA certificate fails with `PKIX path building failed` unless its host is listed here or its CA is added to the JVM truststore; earlier versions accepted any certificate. Adding the CA to the JVM truststore is the more secure option."""
     )
     @PluginProperty(group = "connection")
@@ -339,11 +339,21 @@ public class MailSend extends Task implements RunnableTask<VoidOutput> {
         logger.debug("Sending an email to {}", to);
         Email email = buildEmail(runContext);
 
-        var rTrustedHosts = runContext.render(trustedHosts).asList(String.class);
+        try (var mailer = buildMailer(runContext)) {
+            mailer.sendMail(email);
+        }
 
-        TransportStrategy rStrategy = runContext.render(transportStrategy).as(TransportStrategy.class).orElse(TransportStrategy.SMTPS);
-        String rPassword = runContext.render(this.password).as(String.class).orElse(null);
-        String rAccessToken = runContext.render(this.accessToken).as(String.class).orElse(null);
+        return null;
+    }
+
+    Mailer buildMailer(RunContext runContext) throws Exception {
+        var logger = runContext.logger();
+        var rTrustedHosts = runContext.render(trustedHosts).asList(String.class).stream().map(String::trim).toList();
+        var rHost = runContext.render(this.host).as(String.class).orElse(null);
+
+        var rStrategy = runContext.render(transportStrategy).as(TransportStrategy.class).orElse(TransportStrategy.SMTPS);
+        var rPassword = runContext.render(this.password).as(String.class).orElse(null);
+        var rAccessToken = runContext.render(this.accessToken).as(String.class).orElse(null);
 
         String credential;
 
@@ -361,7 +371,7 @@ public class MailSend extends Task implements RunnableTask<VoidOutput> {
 
         var mailerBuilder = MailerBuilder
             .withSMTPServer(
-                runContext.render(this.host).as(String.class).orElse(null),
+                rHost,
                 runContext.render(this.port).as(Integer.class).orElse(null),
                 runContext.render(this.username).as(String.class).orElse(null),
                 credential
@@ -370,17 +380,16 @@ public class MailSend extends Task implements RunnableTask<VoidOutput> {
             .withSessionTimeout(runContext.render(sessionTimeout).as(Integer.class).orElse(10000))
             .verifyingServerIdentity(runContext.render(verifyServerIdentity).as(Boolean.class).orElse(true));
 
-        if (!rTrustedHosts.isEmpty()) {
-            mailerBuilder = mailerBuilder
-                .trustingAllHosts(false)
-                .trustingSSLHosts(rTrustedHosts.toArray(new String[0]));
+        if (rTrustedHosts.contains("*")) {
+            mailerBuilder = mailerBuilder.trustingAllHosts(false).trustingSSLHosts("*");
+        } else if (rHost != null && rTrustedHosts.stream().anyMatch(rHost::equalsIgnoreCase)) {
+            // Angus Mail compares host names case-sensitively, so pass the host exactly as rendered
+            mailerBuilder = mailerBuilder.trustingAllHosts(false).trustingSSLHosts(rHost);
+        } else if (!rTrustedHosts.isEmpty()) {
+            logger.debug("Host '{}' is not in trustedHosts, validating its certificate against the JVM truststore", rHost);
         }
 
-        try (Mailer mailer = mailerBuilder.buildMailer()) {
-            mailer.sendMail(email);
-        }
-
-        return null;
+        return mailerBuilder.buildMailer();
     }
 
     Email buildEmail(RunContext runContext) throws Exception {
